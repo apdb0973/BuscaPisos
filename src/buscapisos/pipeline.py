@@ -35,6 +35,7 @@ from buscapisos.alert_engine import (
 from buscapisos.boe_connector import BoeConnector  # noqa: F401  (registra el scraper BOE)
 from buscapisos.enrichment import EnrichmentService
 from buscapisos.idealista_scraper import IdealistaScraper  # noqa: F401  (registra Idealista)
+from buscapisos.kyero_scraper import KyeroScraper  # noqa: F401  (registra Kyero)
 from buscapisos.notifier import TelegramNotifier
 from buscapisos.repository_supabase import SupabaseListingRepository
 from buscapisos.scraper import InmovillaScraper, PipelineIngestor  # noqa: F401  (registra Inmovilla)

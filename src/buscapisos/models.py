@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-Source = Literal["inmovilla", "idealista", "boe", "other"]
+Source = Literal["inmovilla", "idealista", "kyero", "boe", "other"]
 
 
 class Listing(BaseModel):
