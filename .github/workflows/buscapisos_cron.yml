@@ -41,8 +41,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install .
 
-      - name: Instalar navegador Playwright
-        run: playwright install --with-deps chromium
+      - name: Instalar navegadores Playwright
+        run: playwright install --with-deps chromium chrome
 
       - name: Ejecutar orquestador
         run: python -m buscapisos.pipeline --urls urls.txt

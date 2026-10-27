@@ -13,13 +13,14 @@ class _FakeClient:
     """Mimics the supabase-py async chain used by Pipeline.
 
     Supports:
-      * client.table('alerts').upsert(payload, ignore_duplicates=True).execute()
-      * client.table('alerts').update(payload).eq('dedup_key', key).execute()
+      * client.table('alerts').select('dedup_key').eq('dedup_key', k).execute()
+      * client.table('alerts').insert(payload).execute()
+      * client.table('alerts').update(payload).eq('dedup_key', k).execute()
     """
 
     def __init__(self, existing_keys=()):
-        self.existing = set(existing_keys)
-        self.upserts: list[dict] = []
+        self.rows = {key: {"dedup_key": key} for key in existing_keys}
+        self.inserts: list[dict] = []
         self.updates: list[tuple[dict, tuple]] = []
 
     def table(self, name):
@@ -29,35 +30,42 @@ class _FakeClient:
     class _Builder:
         def __init__(self, client):
             self._client = client
+            self._kind = None
+            self._payload = None
+            self._eq = None
 
-        def upsert(self, payload, *, ignore_duplicates=False):
-            return _FakeClient._Op(self._client, "upsert", payload, ignore_duplicates)
+        def select(self, columns):
+            self._kind = "select"
+            return self
+
+        def insert(self, payload):
+            self._kind = "insert"
+            self._payload = payload
+            return self
 
         def update(self, payload):
-            return _FakeClient._Op(self._client, "update", payload)
-
-    class _Op:
-        def __init__(self, client, kind, payload, ignore_duplicates=False):
-            self._client = client
-            self._kind = kind
+            self._kind = "update"
             self._payload = payload
-            self._ignore_duplicates = ignore_duplicates
-            self._eq = None
+            return self
 
         def eq(self, column, value):
             self._eq = (column, value)
             return self
 
         async def execute(self):
-            if self._kind == "upsert":
-                key = self._payload["dedup_key"]
-                if self._ignore_duplicates and key in self._client.existing:
-                    return _FakeResponse([])  # duplicate -> not inserted
-                self._client.existing.add(key)
-                self._client.upserts.append(self._payload)
-                return _FakeResponse([self._payload])  # inserted now
-            self._client.updates.append((self._payload, self._eq))
-            return _FakeResponse([])
+            c = self._client
+            if self._kind == "select":
+                key = self._eq[1] if self._eq else None
+                data = [{"dedup_key": key}] if key in c.rows else []
+                return _FakeResponse(data)
+            if self._kind == "insert":
+                c.rows[self._payload["dedup_key"]] = self._payload
+                c.inserts.append(self._payload)
+                return _FakeResponse([self._payload])
+            if self._kind == "update":
+                c.updates.append((self._payload, self._eq))
+                return _FakeResponse([])
+            raise AssertionError("no operation set on builder")
 
 
 class _RecordingNotifier:
@@ -93,8 +101,22 @@ async def test_record_alerts_returns_only_new():
     new = await pipeline._record_alerts(alerts)
 
     assert [a.property_id for a in new] == ["prop-1"]
-    assert len(client.upserts) == 1
-    assert client.upserts[0]["dedup_key"] == "ARBITRAGE:prop-1"
+    assert [i["dedup_key"] for i in client.inserts] == ["ARBITRAGE:prop-1"]
+
+
+async def test_record_alerts_returns_empty_when_all_exist():
+    client = _FakeClient(existing_keys={"ARBITRAGE:prop-1", "ARBITRAGE:prop-2"})
+    pipeline = _make_pipeline(client)
+
+    alerts = [
+        Alert(type="ARBITRAGE", property_id="prop-1", message="ya vista"),
+        Alert(type="ARBITRAGE", property_id="prop-2", message="ya vista"),
+    ]
+
+    new = await pipeline._record_alerts(alerts)
+
+    assert new == []
+    assert client.inserts == []
 
 
 async def test_notify_marks_notified_only_on_success():

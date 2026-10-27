@@ -9,6 +9,7 @@ description = "Multichannel real-estate ingestion engine for Gran Canaria."
 requires-python = ">=3.11"
 dependencies = [
     "playwright>=1.40",
+    "playwright-stealth>=2.0",
     "pydantic>=2.5",
     "beautifulsoup4>=4.12",
     "lxml>=5.0",

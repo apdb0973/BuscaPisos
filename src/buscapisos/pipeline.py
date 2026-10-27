@@ -22,6 +22,7 @@ from decimal import Decimal
 
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
+from playwright_stealth import Stealth
 from supabase import AsyncClient, create_async_client
 
 from buscapisos.alert_engine import (
@@ -55,13 +56,6 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 )
-
-STEALTH_SCRIPT = """
-Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-window.chrome = window.chrome || { runtime: {} };
-Object.defineProperty(navigator, 'languages', { get: () => ['es-ES', 'es', 'en'] });
-Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-"""
 
 
 def _parse_dt(value) -> datetime:
@@ -114,25 +108,31 @@ class Pipeline:
         return alerts
 
     async def _record_alerts(self, alerts: list[Alert]) -> list[Alert]:
-        """Inserta las alertas nuevas (idempotente) y devuelve solo las no vistas."""
+        """Registra las alertas y devuelve solo las nuevas (no vistas)."""
         new_alerts: list[Alert] = []
         for alert in alerts:
             key = f"{alert.type}:{alert.property_id}"
-            response = await (
+            existing = await (
                 self.client.table("alerts")
-                .upsert(
+                .select("dedup_key")
+                .eq("dedup_key", key)
+                .execute()
+            )
+            if existing.data:  # ya registrada -> no es nueva
+                continue
+            await (
+                self.client.table("alerts")
+                .insert(
                     {
                         "dedup_key": key,
                         "type": alert.type,
                         "property_id": alert.property_id,
                         "message": alert.message,
-                    },
-                    ignore_duplicates=True,
+                    }
                 )
                 .execute()
             )
-            if response.data:  # insertada ahora -> es la primera vez
-                new_alerts.append(alert)
+            new_alerts.append(alert)
         return new_alerts
 
     async def _mark_notified(self, alert: Alert) -> None:
@@ -157,9 +157,19 @@ class Pipeline:
             print(f"  [OK] alerta enviada a Telegram: {alert.property_id}")
 
     # -- 1. Ingestión (scrape + guardado) ------------------------------------
+    async def _launch_browser(self, p, headless):
+        """Chrome real si está disponible; si no, el Chromium empaquetado."""
+        try:
+            return await p.chromium.launch(
+                channel="chrome", headless=headless, args=LAUNCH_ARGS
+            )
+        except Exception as exc:
+            print(f"  [WARN] Chrome no disponible ({exc}); usando Chromium empaquetado.")
+            return await p.chromium.launch(headless=headless, args=LAUNCH_ARGS)
+
     async def _ingest(self, urls, concurrency, headless) -> None:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=headless, args=LAUNCH_ARGS)
+            browser = await self._launch_browser(p, headless)
             # Contexto realista compartido (evita huellas de automatización).
             context = await browser.new_context(
                 user_agent=USER_AGENT,
@@ -168,7 +178,7 @@ class Pipeline:
                 timezone_id="Atlantic/Canary",
                 extra_http_headers={"Accept-Language": "es-ES,es;q=0.9"},
             )
-            await context.add_init_script(STEALTH_SCRIPT)
+            await Stealth().apply_stealth_async(context)
 
             sem = asyncio.Semaphore(concurrency)
 
