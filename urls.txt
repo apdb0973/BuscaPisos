@@ -2,3 +2,4 @@
 # Las líneas que empiezan por '#' se ignoran.
 # Sustituye las siguientes por inmuebles reales de tu zona:
 https://www.viviendascanarias.com/ficha/terreno-urbano/las-palmas-de-gran-canaria/la-paterna/11140/21118053/es/
+https://www.idealista.com/inmueble/112653361/
