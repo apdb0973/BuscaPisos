@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuscaPisos - Mapa de Propiedades</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+</head>
+<body class="m-0 p-0 overflow-hidden bg-gray-100">
+
+    <!-- Map Container -->
+    <div id="map" class="w-full h-screen z-0"></div>
+
+    <div class="absolute top-4 right-4 z-[1000] bg-white p-4 rounded-lg shadow-md max-w-sm pointer-events-auto">
+        <h1 class="text-xl font-bold text-gray-800 mb-2">BuscaPisos GC</h1>
+        <p class="text-sm text-gray-600">Capa base: OpenStreetMap</p>
+        <p class="text-sm text-gray-600 mb-2">Capa urbana: GRAFCAN WMS</p>
+    </div>
+
+    <!-- Sidebar: Unified Intelligence Panel -->
+    <div id="sidebar"
+         class="fixed top-0 right-0 h-full w-96 bg-white shadow-xl transform translate-x-full transition-transform duration-300 z-[1001] flex flex-col">
+        <div class="flex items-center justify-between p-4 border-b border-gray-200">
+            <h2 class="text-lg font-bold text-gray-800">Ficha del inmueble</h2>
+            <button id="sidebar-close" class="text-2xl leading-none text-gray-500 hover:text-gray-800">&times;</button>
+        </div>
+        <div id="sidebar-content" class="p-4 overflow-y-auto flex-1"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <!-- Runtime config (gitignored; copy config.js.template -> config.js) -->
+    <script src="config.js"></script>
+    <!-- Map Logic -->
+    <script src="map.js"></script>
+    <!-- Sidebar Logic -->
+    <script src="sidebar.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+// Plantilla de configuración del frontend.
+// Cópiala a `config.js` (gitignored) y rellena tus valores reales:
+//   cp frontend/config.js.template frontend/config.js
+//
+// SUPABASE_URL      -> Project URL (Project Settings > API)
+// SUPABASE_ANON_KEY -> clave anon/publishable (segura para el frontend)
+// IMPORTANTE: nunca pongas aquí la clave service_role (secreta, solo backend).
+window.ENV = {
+    SUPABASE_URL: "https://<ref-del-proyecto>.supabase.co",
+    SUPABASE_ANON_KEY: "<tu-clave-anon-publishable>"
+};

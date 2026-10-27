@@ -1,0 +1,3000 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+frontend/index.html
+frontend/map.js
+frontend/sidebar.js
+pyproject.toml
+scripts/inject_test_data.py
+src/buscapisos/__init__.py
+src/buscapisos/alert_engine.py
+src/buscapisos/boe_connector.py
+src/buscapisos/cli.py
+src/buscapisos/enrichment.py
+src/buscapisos/models.py
+src/buscapisos/parsing.py
+src/buscapisos/repository_supabase.py
+src/buscapisos/repository.py
+src/buscapisos/scraper.py
+supabase/migrations/0001_core_schema.sql
+supabase/tests/001_core_schema.test.sql
+tests/conftest.py
+tests/test_alert_engine.py
+tests/test_boe_scraper.py
+tests/test_enrichment.py
+tests/test_inmovilla_scraper.py
+tests/test_map.py
+tests/test_sidebar.py
+tests/test_supabase_repository.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".gitignore">
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.*
+
+# Frontend runtime config (secrets) — the template IS tracked
+frontend/config.js
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+</file>
+
+<file path="frontend/index.html">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuscaPisos - Mapa de Propiedades</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+</head>
+<body class="m-0 p-0 overflow-hidden bg-gray-100">
+
+    <!-- Map Container -->
+    <div id="map" class="w-full h-screen z-0"></div>
+
+    <div class="absolute top-4 right-4 z-[1000] bg-white p-4 rounded-lg shadow-md max-w-sm pointer-events-auto">
+        <h1 class="text-xl font-bold text-gray-800 mb-2">BuscaPisos GC</h1>
+        <p class="text-sm text-gray-600">Capa base: OpenStreetMap</p>
+        <p class="text-sm text-gray-600 mb-2">Capa urbana: GRAFCAN WMS</p>
+    </div>
+
+    <!-- Sidebar: Unified Intelligence Panel -->
+    <div id="sidebar"
+         class="fixed top-0 right-0 h-full w-96 bg-white shadow-xl transform translate-x-full transition-transform duration-300 z-[1001] flex flex-col">
+        <div class="flex items-center justify-between p-4 border-b border-gray-200">
+            <h2 class="text-lg font-bold text-gray-800">Ficha del inmueble</h2>
+            <button id="sidebar-close" class="text-2xl leading-none text-gray-500 hover:text-gray-800">&times;</button>
+        </div>
+        <div id="sidebar-content" class="p-4 overflow-y-auto flex-1"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <!-- Runtime config (gitignored; copy config.js.template -> config.js) -->
+    <script src="config.js"></script>
+    <!-- Map Logic -->
+    <script src="map.js"></script>
+    <!-- Sidebar Logic -->
+    <script src="sidebar.js"></script>
+</body>
+</html>
+</file>
+
+<file path="frontend/map.js">
+/**
+ * Lógica del Mapa Cartográfico (Phase 4.2)
+ * Patrón IIFE para encapsular la lógica.
+ */
+(function() {
+    let mapInstance = null;
+
+    function initMap() {
+        mapInstance = L.map('map').setView([28.1174, -15.4411], 12);
+
+        // 1. Capa Base: OpenStreetMap
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(mapInstance);
+
+        // 2. Capa WMS: GRAFCAN Planeamiento
+        L.tileLayer.wms('https://idecan2.grafcan.es/ServicioWMS/Planeamiento', {
+            layers: 'Planeamiento',
+            format: 'image/png',
+            transparent: true,
+            opacity: 0.4,
+            attribution: '© GRAFCAN'
+        }).addTo(mapInstance);
+    }
+
+    function addMarker(lat, lng, title, propertyId) {
+        if (!mapInstance) return;
+        const marker = L.marker([lat, lng]).addTo(mapInstance);
+        if (propertyId != null) {
+            marker.on('click', function () {
+                if (typeof window.openSidebar === 'function') {
+                    window.openSidebar(propertyId);
+                }
+            });
+        } else {
+            marker.bindPopup('<b>' + title + '</b>');
+        }
+        return marker;
+    }
+
+    async function loadProperties() {
+        const env = window.ENV || {};
+        const supabaseUrl = env.SUPABASE_URL || '';
+        const supabaseKey = env.SUPABASE_ANON_KEY || '';
+
+        if (!supabaseUrl || !supabaseKey) return;
+
+        try {
+            const response = await fetch(`${supabaseUrl}/rest/v1/properties?select=id,title,location&location=not.is.null&limit=100`, {
+                headers: {
+                    'apikey': supabaseKey,
+                    'Authorization': `Bearer ${supabaseKey}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+            const data = await response.json();
+
+            data.forEach(property => {
+                if (property.location && property.location.coordinates) {
+                    const [lng, lat] = property.location.coordinates;
+                    addMarker(lat, lng, property.title || 'Propiedad', property.id);
+                }
+            });
+        } catch (error) {
+            console.error('Error cargando propiedades:', error);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initMap();
+        loadProperties();
+    });
+
+    window.BuscaPisosMap = {
+        get map() { return mapInstance; },
+        addMarker,
+        loadProperties
+    };
+})();
+</file>
+
+<file path="frontend/sidebar.js">
+/**
+ * Lógica del Sidebar de Inteligencia (Phase 4.2)
+ * Patrón IIFE para encapsular la lógica.
+ */
+(function() {
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('sidebar-content');
+    const closeBtn = document.getElementById('sidebar-close');
+
+    const ITP_GENERAL = 0.065;
+    const ITP_AUCTION = 0.07;
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function getConfig() {
+        const env = window.ENV || {};
+        return {
+            url: env.SUPABASE_URL || '',
+            key: env.SUPABASE_ANON_KEY || '',
+        };
+    }
+
+    function itpRate(source) {
+        if (source === 'boe') return ITP_AUCTION;
+        return ITP_GENERAL;
+    }
+
+    function openSidebar(propertyId) {
+        if (!sidebar || !content) return;
+        sidebar.classList.remove('translate-x-full');
+        sidebar.classList.add('translate-x-0');
+        content.innerHTML = '<p class="text-gray-500">Cargando…</p>';
+
+        fetchProperty(propertyId)
+            .then(renderProperty)
+            .catch(function (err) {
+                content.innerHTML = '<p class="text-red-500">Error: ' + escapeHtml(err.message) + '</p>';
+            });
+    }
+
+    function closeSidebar() {
+        if (!sidebar) return;
+        sidebar.classList.remove('translate-x-0');
+        sidebar.classList.add('translate-x-full');
+    }
+
+    async function fetchProperty(propertyId) {
+        const cfg = getConfig();
+        if (!cfg.url || !cfg.key) throw new Error('Supabase no configurado');
+
+        const select = 'id,title,area,bedrooms,property_type,listings(source,price,url,price_history(price,observed_at))';
+        const url = cfg.url + '/rest/v1/properties?select=' + select + '&id=eq.' + propertyId;
+
+        const response = await fetch(url, {
+            headers: {
+                'apikey': cfg.key,
+                'Authorization': 'Bearer ' + cfg.key,
+                'Accept': 'application/json',
+            },
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+
+        const rows = await response.json();
+        if (!rows || !rows.length) throw new Error('Propiedad no encontrada');
+        return rows[0];
+    }
+
+    function currentPrice(listing) {
+        const history = listing.price_history || [];
+        if (history.length) return history[history.length - 1].price;
+        return listing.price;
+    }
+
+    function renderProperty(p) {
+        const listings = p.listings || [];
+
+        const listingsHtml = listings.map(function (l) {
+            return (
+                '<li class="border-b border-gray-200 py-2">' +
+                '<div class="font-semibold text-gray-800">' + escapeHtml(l.source) + '</div>' +
+                '<div class="text-sm text-gray-600">Precio: ' + escapeHtml(currentPrice(l)) + ' €</div>' +
+                '<div class="text-sm text-gray-500 truncate">' + escapeHtml(l.url || '') + '</div>' +
+                '</li>'
+            );
+        }).join('');
+
+        // Historial de precios consolidado de todos los anuncios.
+        const entries = [];
+        listings.forEach(function (l) {
+            (l.price_history || []).forEach(function (h) {
+                entries.push({ price: h.price, observed_at: h.observed_at });
+            });
+        });
+        entries.sort(function (a, b) {
+            return new Date(a.observed_at) - new Date(b.observed_at);
+        });
+        const historyHtml = entries.map(function (h) {
+            return (
+                '<li class="text-sm text-gray-600 py-1">' +
+                escapeHtml(h.price) + ' € — ' + escapeHtml(h.observed_at) +
+                '</li>'
+            );
+        }).join('');
+
+        // Fiscalidad canaria sobre el precio más bajo.
+        let refPrice = null;
+        let refSource = null;
+        listings.forEach(function (l) {
+            const price = parseFloat(currentPrice(l));
+            if (!isNaN(price) && (refPrice === null || price < refPrice)) {
+                refPrice = price;
+                refSource = l.source;
+            }
+        });
+
+        let fiscalHtml = '<p class="text-sm text-gray-500">Sin anuncios</p>';
+        if (refPrice !== null) {
+            const rate = itpRate(refSource);
+            const itp = refPrice * rate;
+            const total = refPrice + itp;
+            fiscalHtml =
+                '<div class="text-sm text-gray-700 space-y-1">' +
+                '<p>Precio de referencia: ' + refPrice.toLocaleString('es-ES') + ' €</p>' +
+                '<p>ITP (' + (rate * 100) + ' %): ' + itp.toLocaleString('es-ES') + ' €</p>' +
+                '<p class="font-semibold">Coste total estimado: ' + total.toLocaleString('es-ES') + ' €</p>' +
+                '</div>';
+        }
+
+        content.innerHTML =
+            '<h2 class="property-title text-xl font-bold text-gray-800 mb-2">' + escapeHtml(p.title) + '</h2>' +
+            '<p class="text-sm text-gray-600">Tipo: ' + escapeHtml(p.property_type || 'N/A') + '</p>' +
+            '<p class="text-sm text-gray-600">Área: ' + (p.area ? escapeHtml(p.area) + ' m²' : 'N/A') + '</p>' +
+            '<p class="text-sm text-gray-600">Habitaciones: ' + (p.bedrooms != null ? escapeHtml(p.bedrooms) : 'N/A') + '</p>' +
+            '<h3 class="font-semibold text-gray-800 mt-4 mb-2">Anuncios vinculados</h3>' +
+            '<ul>' + (listingsHtml || '<li class="text-sm text-gray-500">Sin anuncios</li>') + '</ul>' +
+            '<h3 class="font-semibold text-gray-800 mt-4 mb-2">Historial de precios</h3>' +
+            '<ul>' + (historyHtml || '<li class="text-sm text-gray-500">Sin historial</li>') + '</ul>' +
+            '<h3 class="font-semibold text-gray-800 mt-4 mb-2">Fiscalidad canaria</h3>' +
+            fiscalHtml;
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeSidebar);
+    }
+
+    window.openSidebar = openSidebar;
+    window.closeSidebar = closeSidebar;
+})();
+</file>
+
+<file path="pyproject.toml">
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "buscapisos"
+version = "0.1.0"
+description = "Multichannel real-estate ingestion engine for Gran Canaria."
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.40",
+    "pydantic>=2.5",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "supabase>=2.5",
+    "python-dotenv>=1.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",
+]
+
+[project.scripts]
+buscapisos = "buscapisos.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+</file>
+
+<file path="scripts/inject_test_data.py">
+#!/usr/bin/env python3
+"""
+Inyecta 3 propiedades de prueba en Gran Canaria (Supabase) con sus listings y
+price_history, para probar el mapa web sin depender del scraper.
+
+EJECUCIÓN (desde la raíz del proyecto):
+    python scripts/inject_test_data.py              # limpia e inserta (por defecto)
+    python scripts/inject_test_data.py --reset      # solo borra los datos de prueba
+    python scripts/inject_test_data.py --no-reset   # inserta sin limpiar antes
+
+VARIABLES DE ENTORNO (o archivo .env en la raíz del proyecto):
+    SUPABASE_URL               -> Project URL (Project Settings > API)
+    SUPABASE_SERVICE_ROLE_KEY  -> clave service_role (maestra, backend; NUNCA en frontend)
+
+NOTA: la geometría `location` se envía como GeoJSON
+{"type": "Point", "coordinates": [lon, lat]} y PostgREST la convierte a
+geometry(Point, 4326) vía PostGIS; Leaflet la lee desde location.coordinates.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import os
+import sys
+
+from dotenv import load_dotenv
+from supabase import create_async_client
+
+TEST_TITLE_PREFIX = "[TEST] "
+
+# ---------------------------------------------------------------------------
+# Datos de prueba: 3 inmuebles en Gran Canaria
+# ---------------------------------------------------------------------------
+PROPERTIES = [
+    {
+        "property_type": "apartment",
+        "title": "Piso en Triana, Las Palmas de Gran Canaria",
+        "location": {"type": "Point", "coordinates": [-15.4153, 28.1035]},
+        "area": "92",
+        "bedrooms": 3,
+        "bathrooms": 2,
+        "city": "Las Palmas de Gran Canaria",
+        "province": "Las Palmas",
+        "is_public": True,
+        "listings": [
+            {
+                "source": "inmovilla",
+                "source_id": "TEST-LPA-001",
+                "url": "https://demo.inmovilla.com/ficha/TEST-LPA-001",
+                "title": "Piso en Triana",
+                "price": "289000",
+                "area": "92",
+                "bedrooms": 3,
+                "bathrooms": 2,
+                "price_history": [
+                    {"price": "320000", "observed_at": "2025-12-01T10:00:00Z"},
+                    {"price": "289000", "observed_at": "2026-02-15T10:00:00Z"},
+                ],
+            }
+        ],
+    },
+    {
+        "property_type": "house",
+        "title": "Casa en Telde, Gran Canaria",
+        "location": {"type": "Point", "coordinates": [-15.4184, 27.9920]},
+        "area": "140",
+        "bedrooms": 4,
+        "bathrooms": 2,
+        "city": "Telde",
+        "province": "Las Palmas",
+        "is_public": True,
+        "listings": [
+            {
+                "source": "inmovilla",
+                "source_id": "TEST-TEL-001",
+                "url": "https://demo.inmovilla.com/ficha/TEST-TEL-001",
+                "title": "Casa en Telde (BOICAN)",
+                "price": "150000",
+                "area": "140",
+                "bedrooms": 4,
+                "bathrooms": 2,
+                "price_history": [{"price": "150000", "observed_at": "2026-01-10T10:00:00Z"}],
+            },
+            {
+                "source": "other",
+                "source_id": "TEST-TEL-002",
+                "url": "https://demo.example.com/TEST-TEL-002",
+                "title": "Casa en Telde (finn.no)",
+                "price": "140000",
+                "area": "140",
+                "bedrooms": 4,
+                "bathrooms": 2,
+                "price_history": [{"price": "140000", "observed_at": "2026-01-12T10:00:00Z"}],
+            },
+        ],
+    },
+    {
+        "property_type": "apartment",
+        "title": "Subasta: apartamento en Maspalomas",
+        "location": {"type": "Point", "coordinates": [-15.5843, 27.7604]},
+        "area": None,
+        "bedrooms": None,
+        "bathrooms": None,
+        "city": "San Bartolomé de Tirajana",
+        "province": "Las Palmas",
+        "is_public": True,
+        "cru": "TEST-CRU-0001",
+        "referencia_catastral": "TEST-REF-0001",
+        "listings": [
+            {
+                "source": "boe",
+                "source_id": "TEST-BOE-001",
+                "url": "https://subastas.boe.es/detalleSubasta?idSub=TEST-BOE-001",
+                "title": "Subasta apartamento Maspalomas",
+                "price": "75000",
+                "area": None,
+                "bedrooms": None,
+                "bathrooms": None,
+                "price_history": [{"price": "75000", "observed_at": "2026-02-01T10:00:00Z"}],
+            }
+        ],
+    },
+]
+
+
+def _clean(payload: dict) -> dict:
+    """Elimina las claves con valor None para no enviarlas a PostgREST."""
+    return {k: v for k, v in payload.items() if v is not None}
+
+
+def _require_id(response, table: str) -> str:
+    rows = getattr(response, "data", None) or []
+    if not rows:
+        raise RuntimeError(f"Supabase no devolvió fila al insertar en {table!r}")
+    return str(rows[0]["id"])
+
+
+async def _reset(client) -> None:
+    """Borra las propiedades de prueba previas (y en cascada su historial)."""
+    resp = await client.table("properties").select("id,title").execute()
+    ids = [
+        row["id"]
+        for row in (getattr(resp, "data", None) or [])
+        if (row.get("title") or "").startswith(TEST_TITLE_PREFIX)
+    ]
+    if not ids:
+        print("No hay datos de prueba previos que borrar.")
+        return
+    # listings -> properties es ON DELETE RESTRICT: borramos primero los listings
+    # (price_history cae en cascada) y después las properties.
+    await client.table("listings").delete().in_("property_id", ids).execute()
+    await client.table("properties").delete().in_("id", ids).execute()
+    print(f"Borradas {len(ids)} propiedades de prueba (y sus listings/historial).")
+
+
+async def _insert_property(client, prop: dict) -> str:
+    payload = _clean(
+        {
+            "property_type": prop["property_type"],
+            "title": TEST_TITLE_PREFIX + prop["title"],
+            "location": prop["location"],
+            "area": prop.get("area"),
+            "bedrooms": prop.get("bedrooms"),
+            "bathrooms": prop.get("bathrooms"),
+            "city": prop.get("city"),
+            "province": prop.get("province"),
+            "is_public": prop.get("is_public", True),
+            "cru": prop.get("cru"),
+            "referencia_catastral": prop.get("referencia_catastral"),
+        }
+    )
+    resp = await client.table("properties").insert(payload).execute()
+    return _require_id(resp, "properties")
+
+
+async def _insert_listing(client, property_id: str, listing: dict) -> str:
+    payload = _clean(
+        {
+            "property_id": property_id,
+            "source": listing["source"],
+            "source_id": listing["source_id"],
+            "url": listing.get("url"),
+            "title": listing.get("title"),
+            "price": listing["price"],
+            "area": listing.get("area"),
+            "bedrooms": listing.get("bedrooms"),
+            "bathrooms": listing.get("bathrooms"),
+        }
+    )
+    resp = await client.table("listings").insert(payload).execute()
+    return _require_id(resp, "listings")
+
+
+async def _insert_price_history(client, listing_id: str, ph: dict) -> None:
+    payload = _clean(
+        {
+            "listing_id": listing_id,
+            "price": ph["price"],
+            "observed_at": ph.get("observed_at"),
+        }
+    )
+    await client.table("price_history").insert(payload).execute()
+
+
+async def _insert_all(client) -> None:
+    for prop in PROPERTIES:
+        property_id = await _insert_property(client, prop)
+        for listing in prop["listings"]:
+            listing_id = await _insert_listing(client, property_id, listing)
+            for ph in listing.get("price_history", []):
+                await _insert_price_history(client, listing_id, ph)
+        print(f"  -> insertada: {prop['title']}")
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Inyecta 3 propiedades de prueba en Gran Canaria en Supabase."
+    )
+    parser.add_argument(
+        "--reset", action="store_true", help="Solo borra los datos de prueba y sale."
+    )
+    parser.add_argument(
+        "--no-reset", action="store_true", help="Inserta sin limpiar los datos previos."
+    )
+    return parser.parse_args()
+
+
+async def main() -> int:
+    args = _parse_args()
+    load_dotenv()
+
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        print(
+            "Error: faltan las variables de entorno SUPABASE_URL y/o "
+            "SUPABASE_SERVICE_ROLE_KEY.\n"
+            "Cópialas desde Project Settings > API de Supabase, o crea un .env.",
+            file=sys.stderr,
+        )
+        return 1
+
+    client = await create_async_client(url, key)
+    try:
+        if args.reset:
+            await _reset(client)
+            return 0
+        if not args.no_reset:
+            await _reset(client)
+        await _insert_all(client)
+        print("Datos de prueba inyectados correctamente.")
+        return 0
+    finally:
+        aclose = getattr(client, "aclose", None)
+        if callable(aclose):
+            await aclose()
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))
+</file>
+
+<file path="src/buscapisos/__init__.py">
+"""BuscaPisos — multichannel real-estate ingestion engine for Gran Canaria."""
+</file>
+
+<file path="src/buscapisos/alert_engine.py">
+"""Alert engine: capitulation & inter-agency arbitrage signals (Phase 5)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Iterable, Literal
+
+AlertType = Literal["CAPITULATION", "ARBITRAGE"]
+
+
+@dataclass(frozen=True)
+class PricePoint:
+    price: Decimal
+    observed_at: datetime
+
+
+@dataclass(frozen=True)
+class ListingSnapshot:
+    source_id: str
+    source: str
+    price: Decimal
+    first_seen: datetime
+    price_history: list[PricePoint] = field(default_factory=list)
+    status: str = "active"
+
+
+@dataclass(frozen=True)
+class PropertySnapshot:
+    property_id: str
+    listings: list[ListingSnapshot]
+
+
+@dataclass(frozen=True)
+class Alert:
+    type: AlertType
+    property_id: str
+    message: str
+
+
+class AlertEngine:
+    """Evaluates properties and their listings to detect investment signals.
+
+    Pure business logic: receives structured snapshots and returns Alert objects,
+    without touching the database or the network. The clock is injectable for
+    deterministic tests.
+    """
+
+    def __init__(
+        self,
+        *,
+        days_on_market_threshold: int = 90,
+        price_drop_threshold: Decimal = Decimal("10.0"),
+        now: datetime | None = None,
+    ) -> None:
+        self.days_on_market_threshold = days_on_market_threshold
+        self.price_drop_threshold = price_drop_threshold
+        self._now = now if now is not None else datetime.now(timezone.utc)
+
+    def evaluate(self, property: PropertySnapshot) -> list[Alert]:
+        alerts: list[Alert] = []
+        alerts.extend(self._check_capitulation(property))
+        alerts.extend(self._check_arbitrage(property))
+        return alerts
+
+    def evaluate_all(self, properties: Iterable[PropertySnapshot]) -> list[Alert]:
+        alerts: list[Alert] = []
+        for property in properties:
+            alerts.extend(self.evaluate(property))
+        return alerts
+
+    # -- Capitulation (motivated seller) -------------------------------------
+    def _check_capitulation(self, property: PropertySnapshot) -> list[Alert]:
+        alerts: list[Alert] = []
+        for listing in property.listings:
+            days_on_market = (self._now - listing.first_seen).days
+            if days_on_market <= self.days_on_market_threshold:
+                continue
+
+            if not listing.price_history:
+                continue
+
+            initial = listing.price_history[0].price
+            current = listing.price
+            if initial <= 0:
+                continue
+
+            drop_pct = (initial - current) / initial * 100
+            if drop_pct < self.price_drop_threshold:
+                continue
+
+            alerts.append(
+                Alert(
+                    type="CAPITULATION",
+                    property_id=property.property_id,
+                    message=(
+                        f"Capitulación: {days_on_market} días en el mercado, "
+                        f"caída del {drop_pct:.1f}% ({initial} € → {current} €)"
+                    ),
+                )
+            )
+        return alerts
+
+    # -- Inter-agency arbitrage ----------------------------------------------
+    def _check_arbitrage(self, property: PropertySnapshot) -> list[Alert]:
+        active = [l for l in property.listings if l.status == "active"]
+        if len(active) < 2:
+            return []
+
+        prices = [l.price for l in active]
+        min_price = min(prices)
+        max_price = max(prices)
+        if max_price <= min_price:
+            return []
+
+        diff = max_price - min_price
+        return [
+            Alert(
+                type="ARBITRAGE",
+                property_id=property.property_id,
+                message=(
+                    f"Arbitraje inter-agencia: {len(active)} anuncios activos, "
+                    f"diferencia de {diff} € (de {min_price} € a {max_price} €)"
+                ),
+            )
+        ]
+</file>
+
+<file path="src/buscapisos/boe_connector.py">
+"""Connector for BOE/TGSS auction portals (simulated JSON API, Phase 2.4)."""
+
+from __future__ import annotations
+
+from decimal import Decimal, InvalidOperation
+from typing import Any
+
+from buscapisos.models import Listing
+
+
+class BoeConnector:
+    """Parses simulated auction-portal JSON into Listing objects.
+
+    Unlike Inmovilla listings, auction edicts have no bedrooms/bathrooms/area,
+    but carry registral identifiers (cru, referencia_catastral) and valuation /
+    minimum-bid figures. `price` maps to the minimum bid (the actionable floor),
+    falling back to the appraisal value when no minimum bid is present.
+    """
+
+    def parse(self, payload: dict[str, Any]) -> Listing:
+        source_id = self._require_source_id(payload)
+
+        minimum_bid = self._to_decimal(payload.get("puja_minima"))
+        auction_value = self._to_decimal(payload.get("valor_subasta"))
+        price = minimum_bid if minimum_bid is not None else auction_value
+        if price is None:
+            raise ValueError("auction payload missing puja_minima and valor_subasta")
+
+        title = str(payload.get("titulo") or self._build_title(payload, source_id))
+        url = str(payload.get("url") or self._build_url(source_id))
+
+        return Listing(
+            title=title,
+            price=price,
+            area=None,
+            bedrooms=None,
+            bathrooms=None,
+            url=url,
+            source_id=source_id,
+            source="boe",
+            cru=payload.get("cru"),
+            referencia_catastral=payload.get("referencia_catastral"),
+            auction_value=auction_value,
+            minimum_bid=minimum_bid,
+        )
+
+    # -- helpers --------------------------------------------------------------
+    @staticmethod
+    def _require_source_id(payload: dict[str, Any]) -> str:
+        value = payload.get("id_subasta")
+        if not value:
+            raise ValueError("auction payload missing id_subasta")
+        return str(value)
+
+    @staticmethod
+    def _to_decimal(value: Any) -> Decimal | None:
+        if value is None or value == "":
+            return None
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, ValueError) as exc:
+            raise ValueError(f"cannot parse decimal from {value!r}") from exc
+
+    @staticmethod
+    def _build_title(payload: dict[str, Any], source_id: str) -> str:
+        provincia = payload.get("provincia")
+        if provincia:
+            return f"Subasta {source_id} en {provincia}"
+        return f"Subasta {source_id}"
+
+    @staticmethod
+    def _build_url(source_id: str) -> str:
+        return f"https://subastas.boe.es/detalleSubasta?idSub={source_id}"
+</file>
+
+<file path="src/buscapisos/cli.py">
+"""Command-line entry point for the full ingestion pipeline (Phase 2.2).
+
+Usage:
+    python -m buscapisos.cli "https://<agencia>.inmovilla.com/ficha/..."
+
+Requires SUPABASE_URL and SUPABASE_KEY (from the environment or a .env file).
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import os
+import sys
+
+from dotenv import load_dotenv
+from playwright.async_api import async_playwright
+from supabase import create_async_client
+
+from buscapisos.repository_supabase import RepositoryError, SupabaseListingRepository
+from buscapisos.scraper import InmovillaIngestor, InmovillaScraper
+
+
+async def _run(url: str, headless: bool) -> int:
+    load_dotenv()
+
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        print("error: SUPABASE_URL and SUPABASE_KEY must be set (or in .env)", file=sys.stderr)
+        return 1
+
+    # Dependency injection: client -> repository -> ingestor -> scraper.
+    client = create_async_client(supabase_url, supabase_key)
+    ingestor = InmovillaIngestor(
+        InmovillaScraper(),
+        SupabaseListingRepository(client),
+    )
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=headless)
+            try:
+                page = await browser.new_page()
+                listing = await ingestor.ingest_url(page, url)
+            finally:
+                await browser.close()
+    except RepositoryError as exc:
+        print(f"error persisting listing: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:  # scraping / navigation failures
+        print(f"error scraping {url}: {exc}", file=sys.stderr)
+        return 3
+
+    print(f"stored {listing.source_id!r} — {listing.title!r}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="buscapisos",
+        description="Scrape an Inmovilla listing URL and persist it to Supabase.",
+    )
+    parser.add_argument("url", help="URL of the listing page to scrape")
+    parser.add_argument(
+        "--headed",
+        action="store_true",
+        help="run the browser in headed mode (default: headless)",
+    )
+    args = parser.parse_args(argv)
+    return asyncio.run(_run(args.url, headless=not args.headed))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+</file>
+
+<file path="src/buscapisos/enrichment.py">
+"""Enrichment: Canarian fiscal engine + Catastro geolocation (Phase 3.3)."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+import httpx
+from supabase import AsyncClient
+
+
+# ---------------------------------------------------------------------------
+# Canarian ITP (Impuesto de Transmisiones Patrimoniales)
+# ---------------------------------------------------------------------------
+ITP_RATE_GENERAL = Decimal("0.065")            # ordinary purchase
+ITP_RATE_AUCTION = Decimal("0.07")             # auction (BOE)
+ITP_RATE_HABITUAL_RESIDENCE = Decimal("0.04")  # habitual residence (bonus)
+AUCTION_SOURCE = "boe"
+
+
+def itp_rate(source: str, is_habitual_residence: bool = False) -> Decimal:
+    """Return the Canarian ITP rate for a given source and destination."""
+    if is_habitual_residence:
+        return ITP_RATE_HABITUAL_RESIDENCE
+    if source == AUCTION_SOURCE:
+        return ITP_RATE_AUCTION
+    return ITP_RATE_GENERAL
+
+
+def calculate_acquisition_cost(
+    price: Decimal,
+    source: str,
+    is_habitual_residence: bool = False,
+) -> Decimal:
+    """Total acquisition cost = price + ITP."""
+    return price * (Decimal("1") + itp_rate(source, is_habitual_residence))
+
+
+# ---------------------------------------------------------------------------
+# Catastro geolocation
+# ---------------------------------------------------------------------------
+CATASTRO_ENDPOINT = (
+    "https://ovc.catastro.meh.es/ovcservweb/OVCSWLocalizacionRC/"
+    "OVCCoordenadas.asmx/Consulta_RCCOOR"
+)
+
+
+class EnrichmentError(Exception):
+    """Raised when enrichment (geolocation) fails."""
+
+
+class EnrichmentService:
+    """Enriches saved properties with spatial (Catastro) data.
+
+    The Supabase client is injected (dependency injection); the HTTP client is
+    injected for tests and otherwise created/owned internally.
+
+    The location update goes through the PostgREST RPC
+    ``update_property_location(p_id, x, y)`` which wraps
+    ``ST_SetSRID(ST_MakePoint(x, y), 4326)`` server-side: the Supabase client
+    cannot inject PostGIS functions directly in an UPDATE payload.
+    """
+
+    def __init__(
+        self,
+        client: AsyncClient,
+        http_client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._client = client
+        self._http = http_client or httpx.AsyncClient()
+        self._owns_http = http_client is None
+
+    async def geolocate_property(
+        self, property_id: str, referencia_catastral: str
+    ) -> None:
+        x, y = await self._fetch_coordinates(referencia_catastral)
+        await self._update_location(property_id, x, y)
+
+    async def _fetch_coordinates(
+        self, referencia_catastral: str
+    ) -> tuple[float, float]:
+        response = await self._http.get(
+            CATASTRO_ENDPOINT,
+            params={"RC": referencia_catastral, "SRS": "EPSG:4326"},
+        )
+        response.raise_for_status()
+        data = response.json()
+        x = data.get("x")
+        y = data.get("y")
+        if x is None or y is None:
+            raise EnrichmentError(f"catastro response missing coordinates: {data!r}")
+        return float(x), float(y)
+
+    async def _update_location(self, property_id: str, x: float, y: float) -> None:
+        await self._client.rpc(
+            "update_property_location",
+            {"p_id": property_id, "x": x, "y": y},
+        ).execute()
+
+    async def aclose(self) -> None:
+        if self._owns_http:
+            await self._http.aclose()
+</file>
+
+<file path="src/buscapisos/models.py">
+"""Pydantic models for extracted listings."""
+
+from decimal import Decimal
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+Source = Literal["inmovilla", "idealista", "boe", "other"]
+
+
+class Listing(BaseModel):
+    """A validated listing record extracted from a scraped page.
+
+    The scraper parses raw strings (e.g. "320.000 €", "115 m²") into clean
+    numeric types *before* constructing this model; Pydantic then enforces the
+    final types and the non-empty / positive invariants below.
+    """
+
+    title: str = Field(min_length=1, description="Listing title/headline")
+    price: Decimal = Field(gt=0, description="Asking price / actionable price in EUR")
+    area: Decimal | None = Field(default=None, gt=0, description="Built surface in m²")
+    bedrooms: int | None = Field(default=None, ge=0)
+    bathrooms: int | None = Field(default=None, ge=0)
+    url: str = Field(min_length=1, description="Canonical URL of the ad")
+    source_id: str = Field(min_length=1, description="Internal reference from the source")
+    source: Source = "inmovilla"
+
+    # Registral identifiers (Phase 2.4)
+    cru: str | None = None
+    referencia_catastral: str | None = None
+
+    # Auction-specific (Phase 2.4)
+    auction_value: Decimal | None = Field(default=None, gt=0)
+    minimum_bid: Decimal | None = Field(default=None, gt=0)
+</file>
+
+<file path="src/buscapisos/parsing.py">
+"""Pure helpers that clean raw scraped text into numeric types.
+
+These run *before* Pydantic so that strings like "320.000 €" and "115 m²"
+become Decimal / int values with no locale-dependent ambiguity.
+"""
+
+from __future__ import annotations
+
+import re
+from decimal import Decimal, InvalidOperation
+
+_NUMERIC_CHARS_RE = re.compile(r"[^\d.,]")
+_AREA_UNITS_RE = re.compile(r"(m\s*2|m²|metros?\s*cuadrados?|mt2)")
+
+
+def _normalize_number(s: str) -> str:
+    """Normalize a digit/separator string into a Decimal-parseable string.
+
+    Handles Spanish formatting: "." as thousands separator ("1.250.000") and
+    "," as decimal separator ("320,50").
+    """
+    if "," in s and "." in s:
+        # The rightmost separator is the decimal separator; drop the other.
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif s.count(",") > 1:
+        s = s.replace(",", "")
+    elif s.count(".") > 1:
+        s = s.replace(".", "")
+    elif "," in s:
+        fraction = s.rsplit(",", 1)[1]
+        s = s.replace(",", ".") if len(fraction) <= 2 else s.replace(",", "")
+    elif "." in s:
+        fraction = s.rsplit(".", 1)[1]
+        s = s if len(fraction) <= 2 else s.replace(".", "")
+    return s
+
+
+def parse_price(raw: str | None) -> Decimal:
+    """Parse a Spanish-formatted price such as "320.000 €" -> Decimal('320000')."""
+    if raw is None or not raw.strip():
+        raise ValueError("price is empty")
+
+    cleaned = _NUMERIC_CHARS_RE.sub("", raw.strip())
+    if not cleaned:
+        raise ValueError(f"cannot parse price from {raw!r}")
+
+    try:
+        return Decimal(_normalize_number(cleaned))
+    except InvalidOperation as exc:
+        raise ValueError(f"cannot parse price from {raw!r}") from exc
+
+
+def parse_area(raw: str | None) -> Decimal:
+    """Parse a surface such as "115 m²" -> Decimal('115')."""
+    if raw is None or not raw.strip():
+        raise ValueError("area is empty")
+
+    cleaned = _AREA_UNITS_RE.sub("", raw.strip().lower())
+    cleaned = _NUMERIC_CHARS_RE.sub("", cleaned)
+    if not cleaned:
+        raise ValueError(f"cannot parse area from {raw!r}")
+
+    try:
+        return Decimal(_normalize_number(cleaned))
+    except InvalidOperation as exc:
+        raise ValueError(f"cannot parse area from {raw!r}") from exc
+
+
+def parse_int(raw: str | None) -> int:
+    """Extract the first integer from a label such as "3 habitaciones" -> 3."""
+    if raw is None:
+        raise ValueError("value is empty")
+
+    match = re.search(r"\d+", str(raw))
+    if match is None:
+        raise ValueError(f"cannot parse integer from {raw!r}")
+
+    return int(match.group())
+</file>
+
+<file path="src/buscapisos/repository_supabase.py">
+"""Supabase-backed implementation of the ListingRepository protocol (Phase 3.2).
+
+Idempotent persistence: safe to call repeatedly for the same source/source_id.
+Asymmetric payloads: registral fields route to properties, None fields are omitted.
+Deterministic dedup: registral identifiers link a new listing to an existing property.
+Fuzzy dedup: physical features (bedrooms/bathrooms + ±5% area) match listings lacking registral data.
+"""
+
+from __future__ import annotations
+
+from decimal import Decimal, InvalidOperation
+from typing import Any
+
+from supabase import AsyncClient
+
+from buscapisos.models import Listing
+
+
+class RepositoryError(Exception):
+    """Raised when persisting a listing to Supabase fails."""
+
+
+class SupabaseListingRepository:
+    """Persists a Listing into Supabase using the Phase 1 schema.
+
+    Routing in `add()`:
+
+      * New listing      -> INSERT properties, INSERT listings, INSERT price_history.
+      * Existing listing -> UPDATE listings; INSERT price_history only if the
+                            price changed (the Phase 1 trigger then refreshes
+                            last_seen automatically).
+    """
+
+    def __init__(self, client: AsyncClient) -> None:
+        self._client = client
+
+    async def add(self, listing: Listing) -> None:
+        try:
+            existing = await self._find_listing(listing)
+            if existing is None:
+                await self._create(listing)
+            else:
+                await self._refresh(existing, listing)
+        except RepositoryError:
+            raise
+        except Exception as exc:  # network / API failures from supabase-py
+            raise RepositoryError(
+                f"failed to persist listing {listing.source_id!r}: {exc}"
+            ) from exc
+
+    # -- lookup ---------------------------------------------------------------
+    async def _find_listing(self, listing: Listing) -> dict | None:
+        response = await (
+            self._client.table("listings")
+            .select("*")
+            .eq("source", listing.source)
+            .eq("source_id", listing.source_id)
+            .execute()
+        )
+        rows = self._rows(response, "listings")
+        return rows[0] if rows else None
+
+    # -- dedup: match by registral identifiers ---------------------------------
+    async def _find_property_by_registral_data(self, listing: Listing) -> str | None:
+        cru = listing.cru
+        referencia = listing.referencia_catastral
+        if cru is None and referencia is None:
+            return None  # no registral data -> skip the network round-trip
+
+        query = self._client.table("properties").select("id")
+        if cru is not None and referencia is not None:
+            response = await query.or_(
+                f"cru.eq.{cru},referencia_catastral.eq.{referencia}"
+            ).execute()
+        elif cru is not None:
+            response = await query.eq("cru", cru).execute()
+        else:
+            response = await query.eq("referencia_catastral", referencia).execute()
+
+        rows = self._rows(response, "properties")
+        return self._require_id(rows[0]) if rows else None
+
+    # -- dedup: match by physical features (±5% area) --------------------------
+    async def _find_property_by_fuzzy_match(self, listing: Listing) -> str | None:
+        area = listing.area
+        bedrooms = listing.bedrooms
+        bathrooms = listing.bathrooms
+        if area is None or bedrooms is None or bathrooms is None:
+            return None  # insufficient data -> skip the network round-trip
+
+        low = area * Decimal("0.95")
+        high = area * Decimal("1.05")
+
+        response = await (
+            self._client.table("properties")
+            .select("id")
+            .eq("bedrooms", bedrooms)
+            .eq("bathrooms", bathrooms)
+            .gte("area", str(low))
+            .lte("area", str(high))
+            .execute()
+        )
+        rows = self._rows(response, "properties")
+        return self._require_id(rows[0]) if rows else None
+
+    # -- new listing ----------------------------------------------------------
+    async def _create(self, listing: Listing) -> None:
+        property_id = await self._find_property_by_registral_data(listing)
+        if property_id is None:
+            property_id = await self._find_property_by_fuzzy_match(listing)
+        if property_id is None:
+            property_id = await self._insert_property(listing)
+        listing_id = await self._insert_listing(listing, property_id)
+        await self._insert_price_history(listing_id, listing.price)
+
+    # -- existing listing -----------------------------------------------------
+    async def _refresh(self, existing: dict, listing: Listing) -> None:
+        await self._update_listing(existing, listing)
+        if self._prices_differ(existing.get("price"), listing.price):
+            await self._insert_price_history(existing["id"], listing.price)
+
+    # -- payload builders -----------------------------------------------------
+    @staticmethod
+    def _property_payload(listing: Listing) -> dict:
+        payload = {
+            "property_type": "other",
+            "title": listing.title,
+        }
+        if listing.cru is not None:
+            payload["cru"] = listing.cru
+        if listing.referencia_catastral is not None:
+            payload["referencia_catastral"] = listing.referencia_catastral
+        if listing.area is not None:
+            payload["area"] = str(listing.area)
+        if listing.bedrooms is not None:
+            payload["bedrooms"] = listing.bedrooms
+        if listing.bathrooms is not None:
+            payload["bathrooms"] = listing.bathrooms
+        return payload
+
+    @staticmethod
+    def _listing_data_payload(listing: Listing) -> dict:
+        payload = {
+            "url": listing.url,
+            "title": listing.title,
+            "price": str(listing.price),
+        }
+        if listing.area is not None:
+            payload["area"] = str(listing.area)
+        if listing.bedrooms is not None:
+            payload["bedrooms"] = listing.bedrooms
+        if listing.bathrooms is not None:
+            payload["bathrooms"] = listing.bathrooms
+        return payload
+
+    # -- individual writes ----------------------------------------------------
+    async def _insert_property(self, listing: Listing) -> str:
+        payload = self._property_payload(listing)
+        response = await self._client.table("properties").insert(payload).execute()
+        rows = self._rows(response, "properties")
+        return self._require_id(self._require_row(rows, "properties"))
+
+    async def _insert_listing(self, listing: Listing, property_id: str) -> str:
+        payload = self._listing_data_payload(listing)
+        payload.update({
+            "property_id": property_id,
+            "source": listing.source,
+            "source_id": listing.source_id,
+        })
+        response = await self._client.table("listings").insert(payload).execute()
+        rows = self._rows(response, "listings")
+        return self._require_id(self._require_row(rows, "listings"))
+
+    async def _update_listing(self, existing: dict, listing: Listing) -> None:
+        # Identity columns (source, source_id, property_id) are never updated.
+        payload = self._listing_data_payload(listing)
+        await (
+            self._client.table("listings")
+            .update(payload)
+            .eq("id", existing["id"])
+            .execute()
+        )
+
+    async def _insert_price_history(self, listing_id: str, price: Decimal) -> None:
+        payload = {
+            "listing_id": listing_id,
+            "price": str(price),
+        }
+        await self._client.table("price_history").insert(payload).execute()
+
+    # -- response/type helpers ------------------------------------------------
+    @staticmethod
+    def _rows(response: Any, table: str) -> list[dict]:
+        # supabase-py v2 returns an APIResponse exposing .data and .error.
+        error = getattr(response, "error", None)
+        data = getattr(response, "data", None)
+        if error:
+            raise RepositoryError(f"Supabase error on {table}: {error}")
+        return data or []
+
+    @staticmethod
+    def _require_row(rows: list[dict], table: str) -> dict:
+        if not rows:
+            raise RepositoryError(f"Supabase returned no rows for {table}")
+        return rows[0]
+
+    @staticmethod
+    def _require_id(row: dict) -> str:
+        value = row.get("id")
+        if not value:
+            raise RepositoryError("Supabase did not return an id")
+        return str(value)
+
+    @staticmethod
+    def _prices_differ(previous: Any, current: Decimal) -> bool:
+        try:
+            return Decimal(str(previous)) != current
+        except (InvalidOperation, TypeError, ValueError):
+            return True  # unparseable previous price -> treat as a change
+</file>
+
+<file path="src/buscapisos/repository.py">
+"""Repository pattern for persisting (or simulating) extracted listings."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from buscapisos.models import Listing
+
+
+class ListingRepository(Protocol):
+    """Interface for listing persistence.
+
+    The DB-backed implementation (Supabase + the Phase 1 schema) will replace
+    the in-memory fake in a later iteration; the scraper only depends on this
+    protocol, never on a concrete repository.
+    """
+
+    async def add(self, listing: Listing) -> None:
+        """Persist a single listing."""
+        ...
+
+
+class InMemoryListingRepository:
+    """Fake repository that simulates insertion by storing listings in memory."""
+
+    def __init__(self) -> None:
+        self._listings: list[Listing] = []
+
+    async def add(self, listing: Listing) -> None:
+        self._listings.append(listing)
+
+    def count(self) -> int:
+        return len(self._listings)
+
+    def all(self) -> list[Listing]:
+        return list(self._listings)
+</file>
+
+<file path="src/buscapisos/scraper.py">
+"""Inmovilla scraper: Playwright navigation + in-memory DOM parsing (bs4)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from bs4 import BeautifulSoup, Tag
+from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
+
+from buscapisos.models import Listing
+from buscapisos.parsing import parse_area, parse_int, parse_price
+from buscapisos.repository import ListingRepository
+
+
+# ---------------------------------------------------------------------------
+# Domain exceptions
+# ---------------------------------------------------------------------------
+class ScraperError(Exception):
+    """Base class for all scraper failures."""
+
+
+class ScraperTimeoutError(ScraperError):
+    """Raised when Playwright navigation times out."""
+
+
+class SelectorNotFoundError(ScraperError):
+    """Raised when a required DOM selector is missing."""
+
+
+class MissingFieldError(ScraperError):
+    """Raised when a required node is present but empty."""
+
+
+# ---------------------------------------------------------------------------
+# Selectors (injectable: Inmovilla is a white-label engine, so the concrete
+# CSS hooks vary per agency).
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class InmovillaSelectors:
+    title: str = ".listing-title"
+    price: str = ".listing-price"
+    area: str = ".listing-area"
+    bedrooms: str = ".listing-bedrooms"
+    bathrooms: str = ".listing-bathrooms"
+    source_id: str = ".listing-ref"
+    source_id_attr: str = "data-ref"
+
+
+class InmovillaScraper:
+    """Navigates to a listing page and parses its DOM into a Listing.
+
+    Navigation (Playwright) and DOM parsing (bs4) are strictly separated so the
+    parser can be unit-tested against HTML fixtures without any network I/O.
+    """
+
+    def __init__(
+        self,
+        selectors: InmovillaSelectors | None = None,
+        timeout_ms: int = 30_000,
+    ) -> None:
+        self.selectors = selectors or InmovillaSelectors()
+        self.timeout_ms = timeout_ms
+
+    # -- Pure DOM parsing (no I/O) -------------------------------------------
+    def parse_listing(self, html: str, url: str) -> Listing:
+        soup = BeautifulSoup(html, "lxml")
+
+        title = self._text(soup, self.selectors.title)
+        price = parse_price(self._text(soup, self.selectors.price))
+        area = parse_area(self._text(soup, self.selectors.area))
+        bedrooms = parse_int(self._text(soup, self.selectors.bedrooms))
+        bathrooms = parse_int(self._text(soup, self.selectors.bathrooms))
+        source_id = self._attr(soup, self.selectors.source_id, self.selectors.source_id_attr)
+
+        return Listing(
+            title=title,
+            price=price,
+            area=area,
+            bedrooms=bedrooms,
+            bathrooms=bathrooms,
+            url=url,
+            source_id=source_id,
+            source="inmovilla",
+        )
+
+    # -- Network navigation (Playwright) -------------------------------------
+    async def scrape_listing(self, page: Page, url: str) -> Listing:
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+        except PlaywrightTimeoutError as exc:
+            raise ScraperTimeoutError(f"timeout navigating to {url}") from exc
+
+        html = await page.content()
+        return self.parse_listing(html, url)
+
+    # -- Internal helpers ----------------------------------------------------
+    def _select_one(self, soup: BeautifulSoup, selector: str) -> Tag:
+        node = soup.select_one(selector)
+        if node is None:
+            raise SelectorNotFoundError(f"selector {selector!r} not found")
+        return node
+
+    def _text(self, soup: BeautifulSoup, selector: str) -> str:
+        node = self._select_one(soup, selector)
+        text = node.get_text(" ", strip=True)
+        if not text:
+            raise MissingFieldError(f"selector {selector!r} produced empty text")
+        return text
+
+    def _attr(self, soup: BeautifulSoup, selector: str, attribute: str) -> str:
+        node = self._select_one(soup, selector)
+        value = node.get(attribute) or node.get_text(" ", strip=True)
+        if not value:
+            raise MissingFieldError(f"selector {selector!r} has no attribute {attribute!r}")
+        return value
+
+
+class InmovillaIngestor:
+    """Orchestrates scraper -> repository while keeping both decoupled."""
+
+    def __init__(self, scraper: InmovillaScraper, repository: ListingRepository) -> None:
+        self.scraper = scraper
+        self.repository = repository
+
+    async def ingest_html(self, html: str, url: str) -> Listing:
+        listing = self.scraper.parse_listing(html, url)
+        await self.repository.add(listing)
+        return listing
+
+    async def ingest_url(self, page: Page, url: str) -> Listing:
+        listing = await self.scraper.scrape_listing(page, url)
+        await self.repository.add(listing)
+        return listing
+</file>
+
+<file path="supabase/migrations/0001_core_schema.sql">
+-- =============================================================================
+-- 0001_core_schema.sql
+-- Core relational schema for the Gran Canaria real-estate aggregator.
+--
+-- Creates:
+--   * Extensions (PostGIS for Catastro X,Y coordinates, pgcrypto for UUIDs)
+--   * properties    -- the unique, deduplicated physical property
+--   * listings      -- raw scraped ads (Inmovilla, Idealista, BOE, ...)
+--   * price_history -- price-variation tracking (1:N with listings)
+--   * PL/pgSQL functions + triggers for automatic last_seen maintenance
+--   * Row Level Security (RLS) policies + grants
+--
+-- Design notes:
+--   * last_seen uses clock_timestamp() (not now()) so every scraper detection
+--     gets a fresh timestamp even within a single transaction. now() is
+--     transaction-stable and would NOT advance inside one transaction, which
+--     is exactly what the pgTAP trigger test depends on.
+--   * Grants follow Supabase's model: table privileges are broad, RLS does the
+--     real gating. anon has table privileges but only SELECT policies (and no
+--     INSERT/UPDATE/DELETE policies), so its writes are rejected by RLS.
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- Extensions
+-- ---------------------------------------------------------------------------
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
+
+-- ---------------------------------------------------------------------------
+-- Roles (Supabase already provides anon / authenticated / service_role; these
+-- guarded blocks only make the migration runnable on a bare Postgres for pgTAP).
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role NOLOGIN BYPASSRLS;
+    END IF;
+END
+$$;
+
+-- ---------------------------------------------------------------------------
+-- properties: the unique physical property (deduplicated entity)
+-- ---------------------------------------------------------------------------
+CREATE TABLE public.properties (
+    id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at           timestamptz NOT NULL DEFAULT now(),
+    updated_at           timestamptz NOT NULL DEFAULT now(),
+    last_seen            timestamptz,
+    property_type        text NOT NULL
+                         CHECK (property_type IN
+                            ('house','apartment','commercial','land','garage','other')),
+    title                text,
+    location             geometry(Point, 4326),   -- Catastro X,Y (EPSG:4326)
+    address              text,
+    city                 text,
+    province             text,
+    postal_code          text,
+    cru                  text UNIQUE,              -- Código Registral Único
+    referencia_catastral text UNIQUE,              -- Referencia Catastral
+    area                 numeric(10,2),            -- built m2
+    bedrooms             integer,
+    bathrooms            integer,
+    is_public            boolean NOT NULL DEFAULT false
+);
+
+CREATE INDEX idx_properties_location_gist ON public.properties USING GIST (location);
+
+-- ---------------------------------------------------------------------------
+-- listings: raw scraped ads (Inmovilla, Idealista, BOE, ...)
+-- ---------------------------------------------------------------------------
+CREATE TABLE public.listings (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    property_id   uuid NOT NULL REFERENCES public.properties(id) ON DELETE RESTRICT,
+    source        text NOT NULL
+                  CHECK (source IN ('inmovilla','idealista','boe','other')),
+    source_id     text NOT NULL,
+    url           text,
+    title         text,
+    description   text,
+    price         numeric(12,2),
+    currency      char(3) NOT NULL DEFAULT 'EUR',
+    area          numeric(10,2),
+    bedrooms      integer,
+    bathrooms     integer,
+    status        text NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active','inactive','sold','rented','removed')),
+    location      geometry(Point, 4326),           -- optional source coordinates
+    first_seen    timestamptz NOT NULL DEFAULT now(),
+    last_seen     timestamptz NOT NULL DEFAULT now(),
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT listings_source_source_id_key UNIQUE (source, source_id)
+);
+
+CREATE INDEX idx_listings_property_id    ON public.listings (property_id);
+CREATE INDEX idx_listings_location_gist  ON public.listings USING GIST (location);
+CREATE INDEX idx_listings_source         ON public.listings (source);
+
+-- ---------------------------------------------------------------------------
+-- price_history: price variations per listing (1:N with listings)
+-- ---------------------------------------------------------------------------
+CREATE TABLE public.price_history (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    listing_id  uuid NOT NULL REFERENCES public.listings(id) ON DELETE CASCADE,
+    price       numeric(12,2) NOT NULL,
+    currency    char(3) NOT NULL DEFAULT 'EUR',
+    observed_at timestamptz NOT NULL DEFAULT now(),
+    source      text,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_price_history_listing_id
+    ON public.price_history (listing_id, observed_at DESC);
+
+-- =============================================================================
+-- Triggers: automatic last_seen maintenance
+-- =============================================================================
+
+-- (1) Every INSERT/UPDATE on a listing marks it as "just seen" by the scraper.
+CREATE OR REPLACE FUNCTION public.fn_listings_set_last_seen()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.last_seen := clock_timestamp();
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_listings_set_last_seen ON public.listings;
+CREATE TRIGGER trg_listings_set_last_seen
+BEFORE INSERT OR UPDATE ON public.listings
+FOR EACH ROW EXECUTE FUNCTION public.fn_listings_set_last_seen();
+
+-- (2) Keep the parent property's last_seen in sync with its listings.
+CREATE OR REPLACE FUNCTION public.fn_sync_property_last_seen()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE public.properties
+       SET last_seen = NEW.last_seen
+     WHERE id = NEW.property_id;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_property_last_seen ON public.listings;
+CREATE TRIGGER trg_sync_property_last_seen
+AFTER INSERT OR UPDATE ON public.listings
+FOR EACH ROW EXECUTE FUNCTION public.fn_sync_property_last_seen();
+
+-- (3) A new price observation also refreshes the listing (and, in turn, the
+--     property via the triggers above).
+CREATE OR REPLACE FUNCTION public.fn_sync_last_seen_from_price()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE public.listings
+       SET last_seen = clock_timestamp()
+     WHERE id = NEW.listing_id;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_last_seen_from_price ON public.price_history;
+CREATE TRIGGER trg_sync_last_seen_from_price
+AFTER INSERT ON public.price_history
+FOR EACH ROW EXECUTE FUNCTION public.fn_sync_last_seen_from_price();
+
+-- (4) Keep updated_at fresh on properties and listings.
+CREATE OR REPLACE FUNCTION public.fn_touch_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at := clock_timestamp();
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_properties_touch_updated_at ON public.properties;
+CREATE TRIGGER trg_properties_touch_updated_at
+BEFORE UPDATE ON public.properties
+FOR EACH ROW EXECUTE FUNCTION public.fn_touch_updated_at();
+
+DROP TRIGGER IF EXISTS trg_listings_touch_updated_at ON public.listings;
+CREATE TRIGGER trg_listings_touch_updated_at
+BEFORE UPDATE ON public.listings
+FOR EACH ROW EXECUTE FUNCTION public.fn_touch_updated_at();
+
+-- =============================================================================
+-- Row Level Security
+-- =============================================================================
+
+ALTER TABLE public.properties    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.listings      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.price_history ENABLE ROW LEVEL SECURITY;
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+    ON public.properties, public.listings, public.price_history
+    TO anon, authenticated, service_role;
+
+-- anon: read-only access to public data (no INSERT/UPDATE/DELETE policies).
+CREATE POLICY "anon_select_public_properties" ON public.properties
+    FOR SELECT TO anon
+    USING (is_public = true);
+
+CREATE POLICY "anon_select_public_listings" ON public.listings
+    FOR SELECT TO anon
+    USING (
+        EXISTS (
+            SELECT 1
+              FROM public.properties p
+             WHERE p.id = property_id
+               AND p.is_public = true
+        )
+    );
+
+CREATE POLICY "anon_select_public_price_history" ON public.price_history
+    FOR SELECT TO anon
+    USING (
+        EXISTS (
+            SELECT 1
+              FROM public.listings l
+              JOIN public.properties p ON p.id = l.property_id
+             WHERE l.id = listing_id
+               AND p.is_public = true
+        )
+    );
+
+-- authenticated / service_role: full access (the scraper runs as service_role,
+-- which also bypasses RLS via BYPASSRLS).
+CREATE POLICY "authenticated_all_properties" ON public.properties
+    FOR ALL TO authenticated, service_role
+    USING (true) WITH CHECK (true);
+
+CREATE POLICY "authenticated_all_listings" ON public.listings
+    FOR ALL TO authenticated, service_role
+    USING (true) WITH CHECK (true);
+
+CREATE POLICY "authenticated_all_price_history" ON public.price_history
+    FOR ALL TO authenticated, service_role
+    USING (true) WITH CHECK (true);
+</file>
+
+<file path="supabase/tests/001_core_schema.test.sql">
+-- =============================================================================
+-- 001_core_schema.test.sql
+-- pgTAP unit tests for the core schema: properties, listings, price_history.
+--
+-- Run with:  supabase test db
+--            (or standalone:  pg_prove -d <db> supabase/tests/001_core_schema.test.sql)
+--
+-- Notes:
+--   * pgTAP is provided by Supabase's test runner; PostGIS and the schema are
+--     created by supabase/migrations/0001_core_schema.sql, which must run first.
+--   * These tests exercise (a) table existence, (b) UUID primary keys and data
+--     types, (c) foreign-key integrity (no orphan listings), (d) the last_seen
+--     triggers, (e) ON DELETE CASCADE, and (f) RLS blocking of anon INSERTs.
+-- =============================================================================
+
+BEGIN;
+
+SELECT plan(25);
+
+-- ---------------------------------------------------------------------------
+-- 1. The three core tables must exist
+-- ---------------------------------------------------------------------------
+SELECT has_table('public', 'properties',    'table properties exists');
+SELECT has_table('public', 'listings',      'table listings exists');
+SELECT has_table('public', 'price_history', 'table price_history exists');
+
+-- ---------------------------------------------------------------------------
+-- 2. UUID primary keys
+-- ---------------------------------------------------------------------------
+SELECT col_is_pk('public', 'properties',     'id', 'properties.id is the primary key');
+SELECT col_type_is('public', 'properties',   'id', 'uuid', 'properties.id is uuid');
+SELECT col_is_pk('public', 'listings',       'id', 'listings.id is the primary key');
+SELECT col_type_is('public', 'listings',     'id', 'uuid', 'listings.id is uuid');
+SELECT col_is_pk('public', 'price_history',  'id', 'price_history.id is the primary key');
+SELECT col_type_is('public', 'price_history','id', 'uuid', 'price_history.id is uuid');
+
+-- ---------------------------------------------------------------------------
+-- 3. Key columns and data types (PostGIS geometry + numeric)
+-- ---------------------------------------------------------------------------
+SELECT has_column('public', 'listings', 'property_id', 'listings has property_id');
+
+SELECT col_type_is(
+    'public', 'properties', 'location',
+    'geometry(Point,4326)',
+    'properties.location is geometry(Point,4326)'
+);
+
+SELECT ok(
+    (SELECT data_type = 'numeric'
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'listings' AND column_name = 'price'),
+    'listings.price is numeric'
+);
+
+SELECT ok(
+    (SELECT data_type = 'numeric'
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'listings' AND column_name = 'area'),
+    'listings.area is numeric'
+);
+
+SELECT ok(
+    (SELECT data_type = 'numeric'
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'price_history' AND column_name = 'price'),
+    'price_history.price is numeric'
+);
+
+-- ---------------------------------------------------------------------------
+-- 4. Foreign keys: no orphan listings / price rows
+-- ---------------------------------------------------------------------------
+SELECT fk_ok(
+    'public', 'listings', 'property_id',
+    'public', 'properties', 'id',
+    'listings.property_id -> properties.id'
+);
+
+SELECT fk_ok(
+    'public', 'price_history', 'listing_id',
+    'public', 'listings', 'id',
+    'price_history.listing_id -> listings.id'
+);
+
+-- Inserting a listing whose property does not exist must fail (SQLSTATE 23503).
+SELECT throws_ok(
+    $$ INSERT INTO public.listings (property_id, source, source_id)
+       VALUES ('00000000-0000-0000-0000-000000000000', 'inmovilla', 'orphan-1') $$,
+    '23503',
+    'orphan listing is rejected by the foreign key'
+);
+
+-- ---------------------------------------------------------------------------
+-- 5. Trigger: listings.last_seen (and properties.last_seen) maintained
+--    automatically on INSERT and UPDATE.
+-- ---------------------------------------------------------------------------
+-- Seed one public property and one listing, capturing their ids / last_seen.
+CREATE TEMP TABLE _test_property AS
+WITH ins AS (
+    INSERT INTO public.properties (property_type, location, is_public)
+    VALUES ('apartment', ST_SetSRID(ST_MakePoint(-15.42, 28.10), 4326), true)
+    RETURNING id
+)
+SELECT id FROM ins;
+
+CREATE TEMP TABLE _test_listing AS
+WITH ins AS (
+    INSERT INTO public.listings (property_id, source, source_id, price, area)
+    SELECT id, 'inmovilla', 'ext-trigger-1', 250000, 80 FROM _test_property
+    RETURNING id, last_seen
+)
+SELECT id, last_seen FROM ins;
+
+SELECT is(
+    (SELECT last_seen IS NOT NULL FROM _test_listing),
+    true,
+    'listings.last_seen is set automatically on INSERT'
+);
+
+-- Let time advance so clock_timestamp() yields a strictly newer value.
+SELECT pg_sleep(0.1);
+
+UPDATE public.listings
+   SET price = price + 1
+ WHERE id = (SELECT id FROM _test_listing);
+
+SELECT isnt(
+    (SELECT last_seen FROM public.listings WHERE id = (SELECT id FROM _test_listing)),
+    (SELECT last_seen FROM _test_listing),
+    'listings.last_seen changes automatically on UPDATE'
+);
+
+SELECT is(
+    (SELECT last_seen FROM public.properties WHERE id = (SELECT id FROM _test_property)),
+    (SELECT last_seen FROM public.listings  WHERE id = (SELECT id FROM _test_listing)),
+    'properties.last_seen is synced from its listing'
+);
+
+-- ---------------------------------------------------------------------------
+-- 6. ON DELETE CASCADE: listings -> price_history
+-- ---------------------------------------------------------------------------
+INSERT INTO public.price_history (listing_id, price)
+VALUES ((SELECT id FROM _test_listing), 250000);
+
+SELECT lives_ok(
+    $$ DELETE FROM public.listings WHERE id = (SELECT id FROM _test_listing) $$,
+    'deleting a listing succeeds'
+);
+
+SELECT is(
+    (SELECT count(*) FROM public.price_history WHERE listing_id = (SELECT id FROM _test_listing)),
+    0,
+    'price_history rows are cascade-deleted with their listing'
+);
+
+-- ---------------------------------------------------------------------------
+-- 7. RLS: the anon role must NOT be able to INSERT
+-- ---------------------------------------------------------------------------
+SET LOCAL ROLE anon;
+
+SELECT throws_ok(
+    $$ INSERT INTO public.properties (property_type, is_public)
+       VALUES ('apartment', true) $$,
+    '42501',
+    'anon INSERT into properties is blocked by RLS'
+);
+
+SELECT throws_ok(
+    $$ INSERT INTO public.listings (property_id, source, source_id)
+       VALUES ('00000000-0000-0000-0000-000000000000', 'inmovilla', 'anon-1') $$,
+    '42501',
+    'anon INSERT into listings is blocked by RLS'
+);
+
+SELECT throws_ok(
+    $$ INSERT INTO public.price_history (listing_id, price)
+       VALUES ('00000000-0000-0000-0000-000000000000', 100) $$,
+    '42501',
+    'anon INSERT into price_history is blocked by RLS'
+);
+
+RESET ROLE;
+
+-- ---------------------------------------------------------------------------
+SELECT * FROM finish();
+
+ROLLBACK;
+</file>
+
+<file path="tests/conftest.py">
+"""Shared fixtures for the Inmovilla scraper test suite."""
+
+import pytest
+
+LISTING_URL = "https://demo.inmovilla.com/ficha/12345"
+
+
+@pytest.fixture
+def listing_url() -> str:
+    return LISTING_URL
+
+
+@pytest.fixture
+def listing_html() -> str:
+    """A representative Inmovilla property detail page (mocked DOM)."""
+    return """
+    <html>
+      <body>
+        <div class="ficha">
+          <h1 class="listing-title">Piso en Las Palmas de Gran Canaria</h1>
+          <span class="listing-price">320.000 €</span>
+          <ul class="listing-features">
+            <li class="listing-area">115 m²</li>
+            <li class="listing-bedrooms">3 habitaciones</li>
+            <li class="listing-bathrooms">2 baños</li>
+          </ul>
+          <div class="listing-ref" data-ref="INV-12345">Referencia: INV-12345</div>
+        </div>
+      </body>
+    </html>
+    """
+
+
+@pytest.fixture
+def html_without_price() -> str:
+    """Same page but the price selector has changed / is missing."""
+    return """
+    <html>
+      <body>
+        <h1 class="listing-title">Piso sin precio</h1>
+        <ul class="listing-features">
+          <li class="listing-area">115 m²</li>
+          <li class="listing-bedrooms">3 habitaciones</li>
+          <li class="listing-bathrooms">2 baños</li>
+        </ul>
+        <div class="listing-ref" data-ref="INV-00001">Referencia: INV-00001</div>
+      </body>
+    </html>
+    """
+
+
+@pytest.fixture
+def html_empty_price() -> str:
+    """Same page but the price node exists yet is empty."""
+    return """
+    <html>
+      <body>
+        <h1 class="listing-title">Piso con precio vacío</h1>
+        <span class="listing-price"></span>
+        <ul class="listing-features">
+          <li class="listing-area">115 m²</li>
+          <li class="listing-bedrooms">3 habitaciones</li>
+          <li class="listing-bathrooms">2 baños</li>
+        </ul>
+        <div class="listing-ref" data-ref="INV-00002">Referencia: INV-00002</div>
+      </body>
+    </html>
+    """
+</file>
+
+<file path="tests/test_alert_engine.py">
+"""pytest suite for AlertEngine (Phase 5)."""
+
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+
+from buscapisos.alert_engine import (
+    AlertEngine,
+    ListingSnapshot,
+    PricePoint,
+    PropertySnapshot,
+)
+
+NOW = datetime(2026, 3, 1, tzinfo=timezone.utc)
+
+
+def _listing(source_id, source, price, first_seen, history, status="active"):
+    return ListingSnapshot(
+        source_id=source_id,
+        source=source,
+        price=Decimal(price),
+        first_seen=first_seen,
+        price_history=[
+            PricePoint(price=Decimal(p), observed_at=o) for p, o in history
+        ],
+        status=status,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 1. Capitulation (motivated seller)
+# ---------------------------------------------------------------------------
+def test_capitulation_signal_when_old_and_dropped_10_percent():
+    # 95 days on market, price 100000 -> 89000 (11% drop).
+    listing = _listing(
+        "INV-1", "inmovilla", "89000",
+        NOW - timedelta(days=95),
+        [
+            ("100000", NOW - timedelta(days=95)),
+            ("89000", NOW - timedelta(days=1)),
+        ],
+    )
+    prop = PropertySnapshot(property_id="prop-1", listings=[listing])
+
+    alerts = AlertEngine(now=NOW).evaluate(prop)
+
+    capitulation = [a for a in alerts if a.type == "CAPITULATION"]
+    assert len(capitulation) == 1
+    assert capitulation[0].property_id == "prop-1"
+    assert capitulation[0].message
+
+
+def test_no_capitulation_when_recent_even_with_big_drop():
+    # 15% drop but only 30 days on market.
+    listing = _listing(
+        "INV-1", "inmovilla", "85000",
+        NOW - timedelta(days=30),
+        [
+            ("100000", NOW - timedelta(days=30)),
+            ("85000", NOW - timedelta(days=1)),
+        ],
+    )
+    prop = PropertySnapshot(property_id="prop-1", listings=[listing])
+
+    alerts = AlertEngine(now=NOW).evaluate(prop)
+
+    assert not [a for a in alerts if a.type == "CAPITULATION"]
+
+
+def test_no_capitulation_when_small_drop_even_if_old():
+    # 100 days on market but only 5% drop.
+    listing = _listing(
+        "INV-1", "inmovilla", "95000",
+        NOW - timedelta(days=100),
+        [
+            ("100000", NOW - timedelta(days=100)),
+            ("95000", NOW - timedelta(days=1)),
+        ],
+    )
+    prop = PropertySnapshot(property_id="prop-1", listings=[listing])
+
+    alerts = AlertEngine(now=NOW).evaluate(prop)
+
+    assert not [a for a in alerts if a.type == "CAPITULATION"]
+
+
+# ---------------------------------------------------------------------------
+# 2. Inter-agency arbitrage
+# ---------------------------------------------------------------------------
+def test_arbitrage_signal_between_listings():
+    listings = [
+        _listing(
+            "BOICAN-1", "inmovilla", "150000",
+            NOW - timedelta(days=10),
+            [("150000", NOW - timedelta(days=10))],
+        ),
+        _listing(
+            "FINN-1", "other", "140000",
+            NOW - timedelta(days=10),
+            [("140000", NOW - timedelta(days=10))],
+        ),
+    ]
+    prop = PropertySnapshot(property_id="prop-1", listings=listings)
+
+    alerts = AlertEngine(now=NOW).evaluate(prop)
+
+    arbitrage = [a for a in alerts if a.type == "ARBITRAGE"]
+    assert len(arbitrage) == 1
+    assert arbitrage[0].property_id == "prop-1"
+    assert "10000" in arbitrage[0].message
+
+
+def test_no_arbitrage_when_single_listing():
+    listing = _listing(
+        "INV-1", "inmovilla", "150000",
+        NOW - timedelta(days=10),
+        [("150000", NOW - timedelta(days=10))],
+    )
+    prop = PropertySnapshot(property_id="prop-1", listings=[listing])
+
+    alerts = AlertEngine(now=NOW).evaluate(prop)
+
+    assert not [a for a in alerts if a.type == "ARBITRAGE"]
+</file>
+
+<file path="tests/test_boe_scraper.py">
+"""pytest suite for BoeConnector (Phase 2.4) — BOE/TGSS auction ingestion."""
+
+from decimal import Decimal
+
+import pytest
+
+from buscapisos.boe_connector import BoeConnector
+from buscapisos.models import Listing
+
+
+@pytest.fixture
+def auction_json() -> dict:
+    """Simulated response from the BOE auctions API."""
+    return {
+        "id_subasta": "SUB-JA-2026-000123",
+        "titulo": "Subasta judicial de inmueble en Las Palmas de Gran Canaria",
+        "url": "https://subastas.boe.es/detalleSubasta?idSub=SUB-JA-2026-000123",
+        "valor_subasta": 150000,
+        "puja_minima": 75000,
+        "referencia_catastral": "3395804DS4639S0056RA",
+        "cru": "13032000012345",
+        "provincia": "Las Palmas",
+    }
+
+
+# ---------------------------------------------------------------------------
+# 1. The Listing model accepts the new fields without breaking the old ones.
+# ---------------------------------------------------------------------------
+def test_listing_model_accepts_auction_fields_without_breaking_existing():
+    listing = Listing(
+        title="Piso en Las Palmas de Gran Canaria",
+        price=Decimal("75000"),
+        area=Decimal("80"),
+        bedrooms=3,
+        bathrooms=2,
+        url="https://example.com/ficha/1",
+        source_id="INV-1",
+        source="boe",
+        cru="13032000012345",
+        referencia_catastral="3395804DS4639S0056RA",
+        auction_value=Decimal("150000"),
+        minimum_bid=Decimal("75000"),
+    )
+
+    # New registral / auction fields are preserved.
+    assert listing.cru == "13032000012345"
+    assert listing.referencia_catastral == "3395804DS4639S0056RA"
+    assert listing.auction_value == Decimal("150000")
+    assert listing.minimum_bid == Decimal("75000")
+
+    # Existing fields remain intact.
+    assert listing.title == "Piso en Las Palmas de Gran Canaria"
+    assert listing.price == Decimal("75000")
+    assert listing.area == Decimal("80")
+    assert listing.bedrooms == 3
+    assert listing.bathrooms == 2
+    assert listing.url == "https://example.com/ficha/1"
+    assert listing.source_id == "INV-1"
+    assert listing.source == "boe"
+
+
+# ---------------------------------------------------------------------------
+# 2. The connector parses the simulated JSON into a valid Listing.
+# ---------------------------------------------------------------------------
+def test_boe_connector_parses_auction_json(auction_json):
+    listing = BoeConnector().parse(auction_json)
+
+    assert isinstance(listing, Listing)
+    assert listing.source == "boe"
+    assert listing.source_id == "SUB-JA-2026-000123"
+
+    # Auctions have no physical features.
+    assert listing.area is None
+    assert listing.bedrooms is None
+    assert listing.bathrooms is None
+
+    # Registral identifiers are filled.
+    assert listing.cru == "13032000012345"
+    assert listing.referencia_catastral == "3395804DS4639S0056RA"
+
+    # Valuation / bid figures; price maps to the minimum bid.
+    assert listing.auction_value == Decimal("150000")
+    assert listing.minimum_bid == Decimal("75000")
+    assert listing.price == Decimal("75000")
+
+    # Title and URL come from the payload.
+    assert listing.title == "Subasta judicial de inmueble en Las Palmas de Gran Canaria"
+    assert listing.url == "https://subastas.boe.es/detalleSubasta?idSub=SUB-JA-2026-000123"
+
+
+# ---------------------------------------------------------------------------
+# 3. Resilience: missing id_subasta raises.
+# ---------------------------------------------------------------------------
+def test_boe_connector_raises_when_id_subasta_missing():
+    with pytest.raises(ValueError):
+        BoeConnector().parse({"valor_subasta": 100000, "puja_minima": 50000})
+</file>
+
+<file path="tests/test_enrichment.py">
+"""pytest suite for EnrichmentService (Phase 3.3)."""
+
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
+
+import httpx
+import respx
+
+from buscapisos.enrichment import (
+    CATASTRO_ENDPOINT,
+    EnrichmentService,
+    calculate_acquisition_cost,
+    itp_rate,
+)
+
+
+# ---------------------------------------------------------------------------
+# 1. Canarian ITP: normal 6.5%, auction 7%, habitual residence 4%
+# ---------------------------------------------------------------------------
+def test_itp_rate_normal_purchase_is_6_5_percent():
+    assert itp_rate("inmovilla", is_habitual_residence=False) == Decimal("0.065")
+
+
+def test_itp_rate_auction_is_7_percent():
+    assert itp_rate("boe", is_habitual_residence=False) == Decimal("0.07")
+
+
+def test_itp_rate_habitual_residence_is_4_percent_for_both_origins():
+    assert itp_rate("inmovilla", is_habitual_residence=True) == Decimal("0.04")
+    assert itp_rate("boe", is_habitual_residence=True) == Decimal("0.04")
+
+
+def test_calculate_acquisition_cost_adds_itp():
+    assert calculate_acquisition_cost(Decimal("100000"), "inmovilla") == Decimal("106500")
+    assert calculate_acquisition_cost(Decimal("100000"), "boe") == Decimal("107000")
+    assert (
+        calculate_acquisition_cost(Decimal("100000"), "boe", is_habitual_residence=True)
+        == Decimal("104000")
+    )
+
+
+# ---------------------------------------------------------------------------
+# 2. Catastro geolocation -> Supabase RPC UPDATE (mocked with respx)
+# ---------------------------------------------------------------------------
+@respx.mock
+async def test_geolocate_property_updates_location_via_rpc():
+    respx.get(CATASTRO_ENDPOINT).mock(
+        return_value=httpx.Response(200, json={"x": -15.42, "y": 28.10})
+    )
+
+    client = MagicMock()
+    client.rpc.return_value.execute = AsyncMock()
+
+    service = EnrichmentService(client)
+    try:
+        await service.geolocate_property("prop-1", "3395804DS4639S0056RA")
+    finally:
+        await service.aclose()
+
+    client.rpc.assert_called_once_with(
+        "update_property_location",
+        {"p_id": "prop-1", "x": -15.42, "y": 28.10},
+    )
+    client.rpc.return_value.execute.assert_awaited_once()
+</file>
+
+<file path="tests/test_inmovilla_scraper.py">
+"""pytest suite for the Inmovilla scraper (Phase 2.1).
+
+Covers:
+  1. Extraction + Pydantic validation from a mocked HTML fragment.
+  2. Numeric cleaners (Spanish price / area / int formats).
+  3. Error handling (changed selector / empty node).
+  4. The Repository pattern via a mocked database.
+"""
+
+from decimal import Decimal
+from unittest.mock import AsyncMock
+
+import pytest
+
+from buscapisos.models import Listing
+from buscapisos.parsing import parse_area, parse_int, parse_price
+from buscapisos.repository import InMemoryListingRepository
+from buscapisos.scraper import (
+    InmovillaIngestor,
+    InmovillaScraper,
+    MissingFieldError,
+    SelectorNotFoundError,
+)
+
+
+# ---------------------------------------------------------------------------
+# 1. Extraction + Pydantic validation from the mocked HTML
+# ---------------------------------------------------------------------------
+def test_parse_listing_extracts_and_validates_all_fields(listing_html, listing_url):
+    scraper = InmovillaScraper()
+
+    listing = scraper.parse_listing(listing_html, listing_url)
+
+    # Pydantic returned a validated Listing with the correct concrete types.
+    assert isinstance(listing, Listing)
+    assert isinstance(listing.price, Decimal)
+    assert isinstance(listing.area, Decimal)
+    assert isinstance(listing.bedrooms, int)
+    assert isinstance(listing.bathrooms, int)
+
+    assert listing.title == "Piso en Las Palmas de Gran Canaria"
+    assert listing.price == Decimal("320000")
+    assert listing.area == Decimal("115")
+    assert listing.bedrooms == 3
+    assert listing.bathrooms == 2
+    assert listing.url == listing_url
+    assert listing.source_id == "INV-12345"
+    assert listing.source == "inmovilla"
+
+
+# ---------------------------------------------------------------------------
+# 2. Numeric cleaners used before Pydantic
+# ---------------------------------------------------------------------------
+def test_numeric_parsers_clean_spanish_formats():
+    assert parse_price("320.000 €") == Decimal("320000")
+    assert parse_price("1.250.000 €") == Decimal("1250000")
+    assert parse_price("320,50 €") == Decimal("320.50")
+
+    assert parse_area("115 m²") == Decimal("115")
+    assert parse_area("115 m2") == Decimal("115")
+    assert parse_area("98,5 m2") == Decimal("98.5")
+
+    assert parse_int("3 habitaciones") == 3
+    assert parse_int("2 baños") == 2
+
+
+# ---------------------------------------------------------------------------
+# 3. Error handling (changed selector / empty node)
+# ---------------------------------------------------------------------------
+def test_parse_listing_raises_when_price_selector_missing(html_without_price, listing_url):
+    scraper = InmovillaScraper()
+
+    with pytest.raises(SelectorNotFoundError):
+        scraper.parse_listing(html_without_price, listing_url)
+
+
+def test_parse_listing_raises_when_price_node_is_empty(html_empty_price, listing_url):
+    scraper = InmovillaScraper()
+
+    with pytest.raises(MissingFieldError):
+        scraper.parse_listing(html_empty_price, listing_url)
+
+
+# ---------------------------------------------------------------------------
+# 4. Repository pattern with a mocked database
+# ---------------------------------------------------------------------------
+async def test_ingestor_calls_repository_add_with_validated_listing(listing_html, listing_url):
+    repo = AsyncMock()  # simulates the DB-backed repository
+
+    ingestor = InmovillaIngestor(InmovillaScraper(), repo)
+    listing = await ingestor.ingest_html(listing_html, listing_url)
+
+    repo.add.assert_awaited_once()
+    saved = repo.add.await_args.args[0]
+    assert saved == listing
+    assert saved.price == Decimal("320000")
+    assert saved.source_id == "INV-12345"
+
+
+async def test_in_memory_repository_simulates_insertion(listing_html, listing_url):
+    repo = InMemoryListingRepository()
+    listing = InmovillaScraper().parse_listing(listing_html, listing_url)
+
+    await repo.add(listing)
+
+    assert repo.count() == 1
+    assert repo.all()[0] is listing
+</file>
+
+<file path="tests/test_map.py">
+"""pytest suite for the Frontend PWA Map (Phase 4.1)."""
+
+import os
+import pytest
+from playwright.async_api import async_playwright, expect
+
+@pytest.mark.asyncio
+async def test_leaflet_map_initialization():
+    """Verify that the Leaflet map initializes, renders OSM tiles, and accepts markers."""
+    # Build absolute path to the local HTML file
+    html_path = f"file:///{os.path.abspath('frontend/index.html')}".replace("\\", "/")
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.goto(html_path)
+
+        # 1. Assert #map container exists
+        await expect(page.locator("#map")).to_be_visible()
+
+        # 2. Assert Leaflet tile pane is injected (OSM/WMS layers added)
+        tile_pane = page.locator(".leaflet-tile-pane")
+        await expect(tile_pane).to_have_count(1, timeout=5000)
+
+        # 3. Add a test marker via the exposed global API
+        await page.evaluate(
+            "window.BuscaPisosMap.addMarker(28.10, -15.42, 'Test property')"
+        )
+
+        # 4. Assert at least one marker icon is present
+        markers = page.locator(".leaflet-marker-icon")
+        await expect(markers).to_have_count(1, timeout=5000)
+
+        await browser.close()
+</file>
+
+<file path="tests/test_sidebar.py">
+"""pytest suite for the Intelligence Sidebar (Phase 4.2)."""
+
+import os
+import pytest
+from playwright.async_api import async_playwright
+
+MOCK_PROPERTY = {
+    "id": "prop-123",
+    "title": "Piso en Las Palmas de Gran Canaria",
+    "area": "115",
+    "bedrooms": 3,
+    "property_type": "apartment",
+    "listings": [
+        {
+            "source": "inmovilla",
+            "price": "320000",
+            "url": "https://example.com/ficha/1",
+            "price_history": [
+                {"price": "325000", "observed_at": "2026-01-01T00:00:00Z"},
+                {"price": "320000", "observed_at": "2026-02-01T00:00:00Z"},
+            ],
+        }
+    ],
+}
+
+
+@pytest.mark.asyncio
+async def test_sidebar_opens_on_marker_click_and_shows_property():
+    html_path = f"file:///{os.path.abspath('frontend/index.html')}".replace("\\", "/")
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+
+        captured = {}
+
+        async def handle_properties(route):
+            captured["url"] = route.request.url
+            await route.fulfill(json=[MOCK_PROPERTY])
+
+        await page.route("**/rest/v1/properties**", handle_properties)
+
+        await page.goto(html_path)
+
+        # Inject test Supabase credentials (read lazily by sidebar.js).
+        await page.evaluate(
+            """() => {
+                window.ENV = {
+                    SUPABASE_URL: 'https://test.supabase.co',
+                    SUPABASE_ANON_KEY: 'test-key'
+                };
+            }"""
+        )
+
+        await page.wait_for_selector(".leaflet-tile-pane", state="attached", timeout=5000)
+
+        # Inject a marker bound to a property id.
+        await page.evaluate(
+            "window.BuscaPisosMap.addMarker(28.10, -15.42, 'Test property', 'prop-123')"
+        )
+        await page.wait_for_selector(".leaflet-marker-icon", state="attached", timeout=5000)
+
+        # Simulate a click on the marker.
+        await page.click(".leaflet-marker-icon")
+
+        # Wait for the sidebar to render the property title.
+        await page.wait_for_selector("#sidebar-content .property-title", state="attached", timeout=5000)
+
+        # 1. The intercepted request uses the nested join.
+        url = captured.get("url", "")
+        assert "select=" in url
+        assert "listings" in url
+        assert "price_history" in url
+
+        # 2. The sidebar slid into view.
+        sidebar_class = await page.get_attribute("#sidebar", "class")
+        assert "translate-x-0" in sidebar_class
+        assert "translate-x-full" not in sidebar_class
+
+        # 3. The property title is rendered.
+        content_text = await page.text_content("#sidebar-content")
+        assert "Piso en Las Palmas de Gran Canaria" in content_text
+
+        await browser.close()
+</file>
+
+<file path="tests/test_supabase_repository.py">
+"""pytest suite for SupabaseListingRepository (Phases 2.3–3.2).
+
+Covers the idempotent add() flow:
+  1. New listing          -> INSERT properties, listings, price_history.
+  2. Existing, no change   -> only UPDATE listings.
+  3. Existing, price drop  -> UPDATE listings + INSERT price_history.
+  4. Network/API failure   -> RepositoryError.
+  5. Auction listing       -> route registral fields, omit None physical fields.
+  6. Registral match       -> link new listing to an existing property.
+  7. Fuzzy match           -> link a listing without registral data by physical features.
+"""
+
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, call
+
+import pytest
+
+from buscapisos.models import Listing
+from buscapisos.repository_supabase import RepositoryError, SupabaseListingRepository
+
+PROPERTY_ID = "11111111-1111-1111-1111-111111111111"
+LISTING_ID = "22222222-2222-2222-2222-222222222222"
+
+
+@pytest.fixture
+def listing() -> Listing:
+    return Listing(
+        title="Piso en Las Palmas de Gran Canaria",
+        price=Decimal("320000"),
+        area=Decimal("115"),
+        bedrooms=3,
+        bathrooms=2,
+        url="https://demo.inmovilla.com/ficha/12345",
+        source_id="INV-12345",
+        source="inmovilla",
+    )
+
+
+@pytest.fixture
+def auction_listing() -> Listing:
+    return Listing(
+        title="Subasta judicial en Las Palmas de Gran Canaria",
+        price=Decimal("75000"),
+        area=None,
+        bedrooms=None,
+        bathrooms=None,
+        url="https://subastas.boe.es/detalleSubasta?idSub=SUB-JA-2026-000123",
+        source_id="SUB-JA-2026-000123",
+        source="boe",
+        cru="13032000012345",
+        referencia_catastral="3395804DS4639S0056RA",
+        auction_value=Decimal("150000"),
+        minimum_bid=Decimal("75000"),
+    )
+
+
+def _response(data, error=None):
+    return SimpleNamespace(data=data, error=error)
+
+
+def _table_builder(*, select_rows=(), insert_rows=(), update_rows=(), insert_error=None, select_or_rows=None, select_fuzzy_rows=None):
+    """Mock a PostgREST query builder supporting select/insert/update chains."""
+    builder = MagicMock()
+    or_rows = list(select_or_rows) if select_or_rows is not None else list(select_rows)
+    fuzzy_rows = list(select_fuzzy_rows) if select_fuzzy_rows is not None else []
+
+    # .select(...).eq(...).eq(...).execute()
+    builder.select.return_value.eq.return_value.eq.return_value.execute = AsyncMock(
+        return_value=_response(list(select_rows))
+    )
+    # .select(...).eq(...).execute()   (single registral field)
+    builder.select.return_value.eq.return_value.execute = AsyncMock(
+        return_value=_response(list(select_rows))
+    )
+    # .select(...).or_(...).execute()  (both registral fields)
+    builder.select.return_value.or_.return_value.execute = AsyncMock(
+        return_value=_response(or_rows)
+    )
+    # .select(...).eq(...).eq(...).gte(...).lte(...).execute()  (fuzzy match)
+    builder.select.return_value.eq.return_value.eq.return_value.gte.return_value.lte.return_value.execute = AsyncMock(
+        return_value=_response(fuzzy_rows)
+    )
+    # .insert({...}).execute()
+    builder.insert.return_value.execute = AsyncMock(
+        side_effect=insert_error,
+        return_value=_response(list(insert_rows)),
+    )
+    # .update({...}).eq(...).execute()
+    builder.update.return_value.eq.return_value.execute = AsyncMock(
+        return_value=_response(list(update_rows))
+    )
+    return builder
+
+
+def _client_with(builders):
+    """Mock supabase client whose .table(name) returns a builder per table."""
+    client = MagicMock()
+    client.table.side_effect = lambda name: builders[name]
+    return client
+
+
+# ---------------------------------------------------------------------------
+# 1. New listing: SELECT empty -> INSERT properties, listings, price_history
+# ---------------------------------------------------------------------------
+async def test_add_new_listing_inserts_property_listing_and_price_history(listing):
+    listings_builder = _table_builder(select_rows=[], insert_rows=[{"id": LISTING_ID}])
+    properties_builder = _table_builder(insert_rows=[{"id": PROPERTY_ID}])
+    price_history_builder = _table_builder(
+        insert_rows=[{"id": "33333333-3333-3333-3333-333333333333"}]
+    )
+
+    client = _client_with({
+        "listings": listings_builder,
+        "properties": properties_builder,
+        "price_history": price_history_builder,
+    })
+    repo = SupabaseListingRepository(client)
+
+    await repo.add(listing)
+
+    # Sequential table accesses:
+    # select listings -> fuzzy-select properties -> insert properties
+    # -> insert listings -> insert price_history.
+    assert client.table.call_args_list == [
+        call("listings"),
+        call("properties"),
+        call("properties"),
+        call("listings"),
+        call("price_history"),
+    ]
+
+    property_payload = properties_builder.insert.call_args.args[0]
+    assert property_payload["property_type"] == "other"
+    assert property_payload["title"] == listing.title
+    assert property_payload["area"] == "115"
+    assert property_payload["bedrooms"] == 3
+    assert property_payload["bathrooms"] == 2
+
+    listing_payload = listings_builder.insert.call_args.args[0]
+    assert listing_payload["property_id"] == PROPERTY_ID
+    assert listing_payload["source"] == listing.source
+    assert listing_payload["source_id"] == listing.source_id
+    assert listing_payload["url"] == listing.url
+    assert listing_payload["title"] == listing.title
+    assert listing_payload["price"] == "320000"
+    assert listing_payload["area"] == "115"
+    assert listing_payload["bedrooms"] == 3
+    assert listing_payload["bathrooms"] == 2
+
+    history_payload = price_history_builder.insert.call_args.args[0]
+    assert history_payload["listing_id"] == LISTING_ID
+    assert history_payload["price"] == "320000"
+
+
+# ---------------------------------------------------------------------------
+# 2. Existing listing, unchanged price -> UPDATE listings only
+# ---------------------------------------------------------------------------
+async def test_add_existing_listing_without_price_change_only_updates(listing):
+    listings_builder = _table_builder(
+        select_rows=[{"id": LISTING_ID, "source_id": listing.source_id, "price": "320000"}],
+        update_rows=[],
+    )
+    properties_builder = _table_builder()
+    price_history_builder = _table_builder()
+
+    client = _client_with({
+        "listings": listings_builder,
+        "properties": properties_builder,
+        "price_history": price_history_builder,
+    })
+    repo = SupabaseListingRepository(client)
+
+    await repo.add(listing)
+
+    # UPDATE listings with the current data, keyed by id.
+    update_payload = listings_builder.update.call_args.args[0]
+    assert update_payload["url"] == listing.url
+    assert update_payload["title"] == listing.title
+    assert update_payload["price"] == "320000"
+    assert update_payload["area"] == "115"
+    assert update_payload["bedrooms"] == 3
+    assert update_payload["bathrooms"] == 2
+    assert listings_builder.update.return_value.eq.call_args == call("id", LISTING_ID)
+
+    # No new property, listing or price-history rows.
+    properties_builder.insert.assert_not_called()
+    listings_builder.insert.assert_not_called()
+    price_history_builder.insert.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# 3. Existing listing, price drop -> UPDATE listings + INSERT price_history
+# ---------------------------------------------------------------------------
+async def test_add_existing_listing_with_price_drop_updates_and_inserts_history(listing):
+    listings_builder = _table_builder(
+        select_rows=[{"id": LISTING_ID, "source_id": listing.source_id, "price": "350000"}],
+        update_rows=[],
+    )
+    properties_builder = _table_builder()
+    price_history_builder = _table_builder(
+        insert_rows=[{"id": "44444444-4444-4444-4444-444444444444"}]
+    )
+
+    client = _client_with({
+        "listings": listings_builder,
+        "properties": properties_builder,
+        "price_history": price_history_builder,
+    })
+    repo = SupabaseListingRepository(client)
+
+    await repo.add(listing)
+
+    # UPDATE listings happened.
+    assert listings_builder.update.called
+
+    # A price_history row records the new (lower) price.
+    history_payload = price_history_builder.insert.call_args.args[0]
+    assert history_payload["listing_id"] == LISTING_ID
+    assert history_payload["price"] == "320000"
+
+    # No new property or listing rows.
+    properties_builder.insert.assert_not_called()
+    listings_builder.insert.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# 4. Network/API failure on the first write -> RepositoryError
+# ---------------------------------------------------------------------------
+async def test_add_raises_repository_error_when_property_insert_fails(listing):
+    listings_builder = _table_builder(select_rows=[])  # new-listing path
+    properties_builder = _table_builder(insert_error=Exception("connection refused"))
+    price_history_builder = _table_builder()
+
+    client = _client_with({
+        "listings": listings_builder,
+        "properties": properties_builder,
+        "price_history": price_history_builder,
+    })
+    repo = SupabaseListingRepository(client)
+
+    with pytest.raises(RepositoryError):
+        await repo.add(listing)
+
+    # Nothing else may run after the failing properties insert.
+    listings_builder.insert.assert_not_called()
+    price_history_builder.insert.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# 5. Auction listing: route registral fields to properties, omit None fields
+# ---------------------------------------------------------------------------
+async def test_add_auction_listing_routes_registral_fields_and_omits_nones(auction_listing):
+    listings_builder = _table_builder(select_rows=[], insert_rows=[{"id": LISTING_ID}])
+    properties_builder = _table_builder(insert_rows=[{"id": PROPERTY_ID}])
+    price_history_builder = _table_builder(
+        insert_rows=[{"id": "55555555-5555-5555-5555-555555555555"}]
+    )
+
+    client = _client_with({
+        "listings": listings_builder,
+        "properties": properties_builder,
+        "price_history": price_history_builder,
+    })
+    repo = SupabaseListingRepository(client)
+
+    await repo.add(auction_listing)
+
+    # Registral identifiers are routed into the properties insert.
+    property_payload = properties_builder.insert.call_args.args[0]
+    assert "cru" in property_payload
+    assert property_payload["cru"] == auction_listing.cru
+    assert "referencia_catastral" in property_payload
+    assert property_payload["referencia_catastral"] == auction_listing.referencia_catastral
+
+    # The listings insert keeps price but omits the None physical fields.
+    listing_payload = listings_builder.insert.call_args.args[0]
+    assert "price" in listing_payload
+    assert listing_payload["price"] == "75000"
+    assert "area" not in listing_payload
+    assert "bedrooms" not in listing_payload
+    assert "bathrooms" not in listing_payload
+
+
+# ---------------------------------------------------------------------------
+# 6. New listing with existing registral data -> link to existing property
+# ---------------------------------------------------------------------------
+async def test_add_new_listing_with_existing_registral_data_links_to_existing_property(auction_listing):
+    listings_builder = _table_builder(select_rows=[], insert_rows=[{"id": LISTING_ID}])
+    properties_builder = _table_builder(select_or_rows=[{"id": "EXISTING-PROP-UUID"}])
+    price_history_builder = _table_builder(
+        insert_rows=[{"id": "66666666-6666-6666-6666-666666666666"}]
+    )
+
+    client = _client_with({
+        "listings": listings_builder,
+        "properties": properties_builder,
+        "price_history": price_history_builder,
+    })
+    repo = SupabaseListingRepository(client)
+
+    await repo.add(auction_listing)
+
+    # properties was queried (not inserted) and the listing links to the existing id.
+    assert client.table.call_args_list == [
+        call("listings"),
+        call("properties"),
+        call("listings"),
+        call("price_history"),
+    ]
+
+    # No new property row is created.
+    properties_builder.insert.assert_not_called()
+
+    # The listing is linked to the existing property id.
+    listing_payload = listings_builder.insert.call_args.args[0]
+    assert listing_payload["property_id"] == "EXISTING-PROP-UUID"
+
+    # Price history is recorded normally.
+    history_payload = price_history_builder.insert.call_args.args[0]
+    assert history_payload["listing_id"] == LISTING_ID
+    assert history_payload["price"] == "75000"
+
+
+# ---------------------------------------------------------------------------
+# 7. New listing without registral data -> link via fuzzy match
+# ---------------------------------------------------------------------------
+async def test_add_new_listing_without_registral_data_links_via_fuzzy_match(listing):
+    listings_builder = _table_builder(select_rows=[], insert_rows=[{"id": LISTING_ID}])
+    properties_builder = _table_builder(select_fuzzy_rows=[{"id": "FUZZY-PROP-UUID"}])
+    price_history_builder = _table_builder(
+        insert_rows=[{"id": "77777777-7777-7777-7777-777777777777"}]
+    )
+
+    client = _client_with({
+        "listings": listings_builder,
+        "properties": properties_builder,
+        "price_history": price_history_builder,
+    })
+    repo = SupabaseListingRepository(client)
+
+    await repo.add(listing)
+
+    # properties was fuzzy-matched (not inserted) and the listing links to it.
+    assert client.table.call_args_list == [
+        call("listings"),
+        call("properties"),
+        call("listings"),
+        call("price_history"),
+    ]
+
+    properties_builder.insert.assert_not_called()
+
+    listing_payload = listings_builder.insert.call_args.args[0]
+    assert listing_payload["property_id"] == "FUZZY-PROP-UUID"
+
+    history_payload = price_history_builder.insert.call_args.args[0]
+    assert history_payload["listing_id"] == LISTING_ID
+    assert history_payload["price"] == "320000"
+</file>
+
+</files>

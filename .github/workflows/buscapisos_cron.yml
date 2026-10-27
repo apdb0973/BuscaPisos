@@ -1,0 +1,48 @@
+name: BuscaPisos cron
+
+on:
+  schedule:
+    # Dos veces al día en UTC: 08:00 y 20:00.
+    # (Canarias = UTC+0 en invierno / UTC+1 en verano; ajusta si quieres hora local exacta)
+    - cron: "0 8,20 * * *"
+  workflow_dispatch:   # ejecución manual desde la web de GitHub
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buscapisos-cron
+  cancel-in-progress: false
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Instalar navegador Playwright
+        run: playwright install --with-deps chromium
+
+      - name: Ejecutar orquestador
+        run: python -m buscapisos.pipeline --urls urls.txt
