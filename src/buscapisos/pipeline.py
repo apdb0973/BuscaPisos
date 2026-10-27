@@ -17,7 +17,7 @@ import argparse
 import asyncio
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from dotenv import load_dotenv
@@ -40,6 +40,28 @@ from buscapisos.scraper import InmovillaScraper, PipelineIngestor  # noqa: F401 
 
 # Lista temporal de respaldo (se usa si no hay --url ni urls.txt).
 DEFAULT_URLS: list[str] = []
+
+# ---------------------------------------------------------------------------
+# Evasión anti-bot (Playwright / Chromium)
+# ---------------------------------------------------------------------------
+LAUNCH_ARGS = [
+    "--disable-blink-features=AutomationControlled",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+]
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+)
+
+STEALTH_SCRIPT = """
+Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+window.chrome = window.chrome || { runtime: {} };
+Object.defineProperty(navigator, 'languages', { get: () => ['es-ES', 'es', 'en'] });
+Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+"""
 
 
 def _parse_dt(value) -> datetime:
@@ -87,8 +109,40 @@ class Pipeline:
         await self._enrich()
         snapshots = await self._load_snapshots()
         alerts = self.alert_engine.evaluate_all(snapshots)
-        await self._notify(alerts)
+        new_alerts = await self._record_alerts(alerts)
+        await self._notify(new_alerts)
         return alerts
+
+    async def _record_alerts(self, alerts: list[Alert]) -> list[Alert]:
+        """Inserta las alertas nuevas (idempotente) y devuelve solo las no vistas."""
+        new_alerts: list[Alert] = []
+        for alert in alerts:
+            key = f"{alert.type}:{alert.property_id}"
+            response = await (
+                self.client.table("alerts")
+                .upsert(
+                    {
+                        "dedup_key": key,
+                        "type": alert.type,
+                        "property_id": alert.property_id,
+                        "message": alert.message,
+                    },
+                    ignore_duplicates=True,
+                )
+                .execute()
+            )
+            if response.data:  # insertada ahora -> es la primera vez
+                new_alerts.append(alert)
+        return new_alerts
+
+    async def _mark_notified(self, alert: Alert) -> None:
+        key = f"{alert.type}:{alert.property_id}"
+        await (
+            self.client.table("alerts")
+            .update({"notified_at": datetime.now(timezone.utc).isoformat()})
+            .eq("dedup_key", key)
+            .execute()
+        )
 
     async def _notify(self, alerts: list[Alert]) -> None:
         if self.notifier is None or not alerts:
@@ -96,19 +150,31 @@ class Pipeline:
         for alert in alerts:
             try:
                 await self.notifier.send_alert(alert)
-                print(f"  [OK] alerta enviada a Telegram: {alert.property_id}")
             except Exception as exc:  # un fallo de red no aborta el pipeline
                 print(f"  [ERROR] telegram: {exc}")
+                continue  # no marcar notificada si el envío falló
+            await self._mark_notified(alert)
+            print(f"  [OK] alerta enviada a Telegram: {alert.property_id}")
 
     # -- 1. Ingestión (scrape + guardado) ------------------------------------
     async def _ingest(self, urls, concurrency, headless) -> None:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=headless)
+            browser = await p.chromium.launch(headless=headless, args=LAUNCH_ARGS)
+            # Contexto realista compartido (evita huellas de automatización).
+            context = await browser.new_context(
+                user_agent=USER_AGENT,
+                viewport={"width": 1366, "height": 768},
+                locale="es-ES",
+                timezone_id="Atlantic/Canary",
+                extra_http_headers={"Accept-Language": "es-ES,es;q=0.9"},
+            )
+            await context.add_init_script(STEALTH_SCRIPT)
+
             sem = asyncio.Semaphore(concurrency)
 
             async def one(url: str) -> None:
                 async with sem:
-                    page = await browser.new_page()
+                    page = await context.new_page()
                     try:
                         await self.ingestor.ingest_url(page, url)
                         print(f"  [OK] ingerida: {url}")
