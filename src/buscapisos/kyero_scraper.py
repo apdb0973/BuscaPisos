@@ -1,14 +1,14 @@
-"""Kyero scraper (navegación Playwright + parse DOM)."""
+"""Kyero scraper (navegación Playwright + parse JSON-LD)."""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import random
 import re
-from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from buscapisos.base_scraper import ScraperFactory
@@ -21,26 +21,15 @@ class KyeroScraperError(Exception):
 
 
 class KyeroTimeoutError(KyeroScraperError):
-    """Timeout de navegación o espera de selector."""
-
-
-class KyeroSelectorError(KyeroScraperError):
-    """Selector requerido ausente en el DOM."""
+    """Timeout de navegación o espera del bloque JSON-LD."""
 
 
 class KyeroFieldError(KyeroScraperError):
-    """Nodo presente pero vacío."""
-
-
-@dataclass(frozen=True)
-class KyeroSelectors:
-    """Selectores del detalle de Kyero (inyectables; se afinan tras inspección real)."""
-    title: str = "h1"
-    price: str = ".price"
-    reference: str = ".reference"
+    """Falta JSON-LD o no se pudo extraer la referencia."""
 
 
 _URL_ID_RE = re.compile(r"/property/(\d+)")
+_JSON_LD_SELECTOR = "script[type='application/ld+json']"
 
 
 @ScraperFactory.register
@@ -51,12 +40,10 @@ class KyeroScraper:
 
     def __init__(
         self,
-        selectors: KyeroSelectors | None = None,
         timeout_ms: int = 30_000,
         min_delay: float = 2.0,
         max_delay: float = 5.0,
     ) -> None:
-        self.selectors = selectors or KyeroSelectors()
         self.timeout_ms = timeout_ms
         self.min_delay = min_delay
         self.max_delay = max_delay
@@ -65,9 +52,13 @@ class KyeroScraper:
     def parse(self, content: str, url: str) -> Listing:
         soup = BeautifulSoup(content, "lxml")
 
-        title = self._text(soup, self.selectors.title)
-        price = parse_price(self._text(soup, self.selectors.price))
-        source_id = self._source_id(soup, url)
+        ld = self._extract_json_ld(soup)
+        if ld is None:
+            raise KyeroFieldError("no se encontró JSON-LD con nombre y precio")
+
+        title = ld["name"]
+        price = parse_price(str(ld["price"]))
+        source_id = self._source_id(url)
 
         return Listing(
             title=title,
@@ -87,10 +78,11 @@ class KyeroScraper:
 
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=self.timeout_ms)
-            await page.wait_for_selector(self.selectors.title, timeout=self.timeout_ms)
+            # El JSON-LD aparece cuando el render SEO está listo.
+            await page.wait_for_selector(_JSON_LD_SELECTOR, timeout=self.timeout_ms)
         except PlaywrightTimeoutError as exc:
             raise KyeroTimeoutError(
-                f"timeout navegando/esperando selector en {url}"
+                f"timeout navegando/esperando JSON-LD en {url}"
             ) from exc
 
         # Pausa aleatoria post-carga para estabilizar el render JS.
@@ -100,29 +92,45 @@ class KyeroScraper:
         return self.parse(html, url)
 
     # -- helpers -------------------------------------------------------------
-    def _select_one(self, soup: BeautifulSoup, selector: str) -> Tag:
-        node = soup.select_one(selector)
-        if node is None:
-            raise KyeroSelectorError(f"selector {selector!r} no encontrado")
-        return node
+    def _extract_json_ld(self, soup: BeautifulSoup) -> dict | None:
+        """Devuelve {name, price} del primer bloque JSON-LD con nombre y precio."""
+        for script in soup.find_all("script", type="application/ld+json"):
+            try:
+                data = json.loads(script.string or "")
+            except (json.JSONDecodeError, TypeError):
+                continue
+            for item in self._iter_json_ld_items(data):
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                price = self._price_from_json_ld(item)
+                if name and price is not None:
+                    return {"name": str(name), "price": price}
+        return None
 
-    def _text(self, soup: BeautifulSoup, selector: str) -> str:
-        node = self._select_one(soup, selector)
-        text = node.get_text(" ", strip=True)
-        if not text:
-            raise KyeroFieldError(f"selector {selector!r} vacío")
-        return text
+    @staticmethod
+    def _iter_json_ld_items(data: Any):
+        if isinstance(data, dict):
+            graph = data.get("@graph")
+            if isinstance(graph, list):
+                yield from graph
+            else:
+                yield data
+        elif isinstance(data, list):
+            yield from data
 
-    def _source_id(self, soup: BeautifulSoup, url: str) -> str:
-        # 1) Referencia visible en la ficha; 2) fallback: id numérico de la URL.
-        try:
-            raw = self._text(soup, self.selectors.reference)
-            value = raw.replace("Reference", "").replace("Referencia", "").strip(" :")
-            if value:
-                return value
-        except KyeroScraperError:
-            pass
+    @staticmethod
+    def _price_from_json_ld(item: dict) -> Any:
+        offers = item.get("offers")
+        if isinstance(offers, dict):
+            return offers.get("price")
+        if isinstance(offers, list) and offers:
+            return offers[0].get("price")
+        return item.get("price")
+
+    @staticmethod
+    def _source_id(url: str) -> str:
         match = _URL_ID_RE.search(url)
         if match:
             return match.group(1)
-        raise KyeroFieldError("no se pudo extraer la referencia de Kyero")
+        raise KyeroFieldError("no se pudo extraer la referencia de Kyero de la URL")
