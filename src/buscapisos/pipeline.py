@@ -97,9 +97,8 @@ class Pipeline:
         urls: list[str],
         *,
         concurrency: int = 2,
-        headless: bool = True,
     ) -> list[Alert]:
-        await self._ingest(urls, concurrency, headless)
+        await self._ingest(urls, concurrency)
         await self._enrich()
         snapshots = await self._load_snapshots()
         alerts = self.alert_engine.evaluate_all(snapshots)
@@ -157,19 +156,19 @@ class Pipeline:
             print(f"  [OK] alerta enviada a Telegram: {alert.property_id}")
 
     # -- 1. Ingestión (scrape + guardado) ------------------------------------
-    async def _launch_browser(self, p, headless):
-        """Chrome real si está disponible; si no, el Chromium empaquetado."""
+    async def _launch_browser(self, p):
+        """Chrome (o Chromium) con interfaz gráfica real (Xvfb en CI)."""
         try:
             return await p.chromium.launch(
-                channel="chrome", headless=headless, args=LAUNCH_ARGS
+                channel="chrome", headless=False, args=LAUNCH_ARGS
             )
         except Exception as exc:
             print(f"  [WARN] Chrome no disponible ({exc}); usando Chromium empaquetado.")
-            return await p.chromium.launch(headless=headless, args=LAUNCH_ARGS)
+            return await p.chromium.launch(headless=False, args=LAUNCH_ARGS)
 
-    async def _ingest(self, urls, concurrency, headless) -> None:
+    async def _ingest(self, urls, concurrency) -> None:
         async with async_playwright() as p:
-            browser = await self._launch_browser(p, headless)
+            browser = await self._launch_browser(p)
             # Contexto realista compartido (evita huellas de automatización).
             context = await browser.new_context(
                 user_agent=USER_AGENT,
@@ -251,7 +250,6 @@ def _parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--url", help="procesar una única URL")
     parser.add_argument("--urls", default="urls.txt", help="archivo con URLs (una por línea)")
     parser.add_argument("--concurrency", type=int, default=2, help="páginas en paralelo")
-    parser.add_argument("--headed", action="store_true", help="navegador visible (debug)")
     return parser.parse_args(argv)
 
 
@@ -288,9 +286,7 @@ async def main(argv=None) -> int:
     )
 
     try:
-        alerts = await pipeline.run(
-            urls, concurrency=args.concurrency, headless=not args.headed
-        )
+        alerts = await pipeline.run(urls, concurrency=args.concurrency)
     finally:
         await enrichment.aclose()
         aclose = getattr(client, "aclose", None)

@@ -41,8 +41,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install .
 
+      - name: Instalar Xvfb (display virtual)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
       - name: Instalar navegadores Playwright
         run: playwright install --with-deps chromium chrome
 
-      - name: Ejecutar orquestador
-        run: python -m buscapisos.pipeline --urls urls.txt
+      - name: Ejecutar orquestador (navegador gráfico vía Xvfb)
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python -m buscapisos.pipeline --urls urls.txt
